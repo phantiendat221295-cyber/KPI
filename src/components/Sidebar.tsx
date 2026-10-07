@@ -115,7 +115,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         <div className="pt-1 text-center">
           <p className="text-[11px] font-semibold text-slate-500">DNA Portal v2.0</p>
-          <p className="text-[10px] text-slate-400">FPT Polytechnic Đà Nẵng</p>
+          <p className="text-[10px] text-slate-400">FPT Polytechnic Đồng Nai</p>
         </div>
       </div>
     </aside>
