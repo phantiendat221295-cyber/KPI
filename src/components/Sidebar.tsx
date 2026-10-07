@@ -8,7 +8,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  Layers,
+  Share2,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -17,6 +17,7 @@ interface SidebarProps {
   onToggleCollapse: () => void;
   onOpenConfig: () => void;
   onOpenDepartment: () => void;
+  onOpenShare: () => void;
   onExportExcel: () => void;
   hasData: boolean;
 }
@@ -27,6 +28,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggleCollapse,
   onOpenConfig,
   onOpenDepartment,
+  onOpenShare,
   onExportExcel,
   hasData,
 }) => {
@@ -125,6 +127,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <BookOpen className="w-4 h-4 text-gray-500 shrink-0" />
             {!isCollapsed && (
               <span className="truncate text-gray-700">Danh mục Bộ môn (DNA)</span>
+            )}
+          </div>
+          {!isCollapsed && (
+            <ChevronRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+          )}
+        </button>
+
+        {/* Menu 4: Chia sẻ link xem */}
+        <button
+          onClick={onOpenShare}
+          className={`w-full flex items-center px-3.5 py-2.5 text-sm transition-all text-left text-gray-700 hover:bg-gray-50 hover:text-emerald-700 border-l-[3px] border-transparent ${
+            isCollapsed ? 'justify-center' : 'justify-between'
+          }`}
+          title="Chia sẻ liên kết xem báo cáo"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <Share2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            {!isCollapsed && (
+              <span className="truncate text-gray-700">Chia sẻ link xem</span>
             )}
           </div>
           {!isCollapsed && (

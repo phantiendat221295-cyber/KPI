@@ -12,6 +12,7 @@ import {
   Eye,
   ShieldCheck,
   CheckCircle2,
+  Share2,
 } from 'lucide-react';
 import { SemesterConfig, UserRole } from '../types';
 
@@ -20,6 +21,7 @@ interface HeaderProps {
   searchTerm: string;
   onSearchChange: (val: string) => void;
   onOpenConfig: () => void;
+  onOpenShare: () => void;
   onExportExcel: () => void;
   // Cloud Sync Props
   hasCloudApi: boolean;
@@ -38,6 +40,7 @@ export const Header: React.FC<HeaderProps> = ({
   searchTerm,
   onSearchChange,
   onOpenConfig,
+  onOpenShare,
   onExportExcel,
   hasCloudApi,
   isSyncing,
@@ -83,8 +86,8 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Right: Cloud Sync Actions & User */}
-      <div className="flex items-center gap-2.5">
+      {/* Right: Cloud Sync Actions, Share & User */}
+      <div className="flex items-center gap-2">
         {/* Search Input */}
         <div className="relative hidden md:block">
           <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -93,7 +96,7 @@ export const Header: React.FC<HeaderProps> = ({
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Tìm kiếm bộ môn..."
-            className="w-40 lg:w-48 pl-8 pr-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-[#0066B3] focus:border-[#0066B3] text-gray-800 placeholder-gray-400"
+            className="w-36 lg:w-44 pl-8 pr-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-[#0066B3] focus:border-[#0066B3] text-gray-800 placeholder-gray-400"
           />
         </div>
 
@@ -138,6 +141,16 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="hidden sm:inline">Nối Google Sheets</span>
           </button>
         )}
+
+        {/* Share Link Button */}
+        <button
+          onClick={onOpenShare}
+          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-medium transition-colors shadow-2xs"
+          title="Sao chép liên kết chia sẻ cho người khác xem ngay lập tức"
+        >
+          <Share2 className="w-3.5 h-3.5 text-emerald-600" />
+          <span className="hidden lg:inline">Chia sẻ link</span>
+        </button>
 
         {/* Quick Download Excel Button */}
         <button
