@@ -1,0 +1,6 @@
+{
+  "name": "FPT Polytechnic DNA - Thống kê OKR & Tỷ lệ Cấm thi",
+  "description": "Hệ thống thống kê đào tạo, phân tích lượt sinh viên, theo dõi tỷ lệ cấm thi và tỷ lệ đạt OKR hàng tuần cho cơ sở FPT Polytechnic Đà Nẵng (DNA).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
