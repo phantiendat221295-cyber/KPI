@@ -1,5 +1,5 @@
 /**
- * FPT Polytechnic DNA - Training & OKR Management Types
+ * FPT Polytechnic Đồng Nai (DNA) - Training & OKR Management Types
  */
 
 export type BlockType = 'B1' | 'B2';
@@ -88,16 +88,19 @@ export interface Table1RowData {
   // Toàn kỳ FA26
   allCount: number;
   allPercentage: number;
+  allForbiddenCount: number | null;
   allForbiddenRate: number | null;
   allPassRate: number | null;
   // Block 1
   b1Count: number;
   b1Percentage: number;
+  b1ForbiddenCount: number | null;
   b1ForbiddenRate: number | null;
   b1PassRate: number | null;
   // Block 2
   b2Count: number;
   b2Percentage: number;
+  b2ForbiddenCount: number | null;
   b2ForbiddenRate: number | null;
   b2PassRate: number | null;
 }
@@ -107,15 +110,22 @@ export interface Table2RowData {
   campus: string; // 'DNA'
   department: DnaDepartmentCode;
   isSupported: boolean;
-  // Tuần 1 -> 6 (Tỷ lệ cấm thi %)
-  week1: number | null;
-  week2: number | null;
-  week3: number | null;
-  week4: number | null;
-  week5: number | null;
-  week6: number | null;
-  // Tuần 8 (Tỷ lệ Pass %)
-  week8: number | null;
+  // Tuần 8: Pass (%)
+  week8PassCount: number | null;
+  week8PassRate: number | null;
+  // Tuần 1 -> 6: [SL Cấm | % Cấm thi]
+  week1Count: number | null;
+  week1Rate: number | null;
+  week2Count: number | null;
+  week2Rate: number | null;
+  week3Count: number | null;
+  week3Rate: number | null;
+  week4Count: number | null;
+  week4Rate: number | null;
+  week5Count: number | null;
+  week5Rate: number | null;
+  week6Count: number | null;
+  week6Rate: number | null;
 }
 
 export interface ToastMessage {

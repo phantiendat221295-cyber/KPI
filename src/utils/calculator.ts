@@ -1,6 +1,5 @@
-import { DNA_DEPARTMENTS, WEEK_SLOTS } from '../constants';
+import { DNA_DEPARTMENTS } from '../constants';
 import {
-  BlockType,
   BlockWeeklyData,
   DnaDepartmentCode,
   StudentEnrollmentRow,
@@ -27,45 +26,59 @@ export function getLatestWeekUploaded(weeklyData: BlockWeeklyData): number | nul
 }
 
 /**
- * Calculate Forbidden Rate for a specific list of student results and department
+ * Calculate Forbidden Count & Rate for a specific department
  */
-export function calculateForbiddenRate(results: StudentResultRow[], deptCode: DnaDepartmentCode): number | null {
+export function calculateForbiddenStats(
+  results: StudentResultRow[],
+  deptCode: DnaDepartmentCode
+): { count: number | null; rate: number | null } {
   const deptResults = results.filter((r) => r.department === deptCode);
-  if (deptResults.length === 0) return null;
+  if (deptResults.length === 0) return { count: null, rate: null };
   const forbiddenCount = deptResults.filter((r) => r.isForbiddenExam).length;
-  return (forbiddenCount / deptResults.length) * 100;
+  const rate = (forbiddenCount / deptResults.length) * 100;
+  return { count: forbiddenCount, rate };
 }
 
 /**
- * Calculate Pass Rate for a specific list of student results and department
+ * Calculate Pass Count & Rate for a specific department
  */
-export function calculatePassRate(results: StudentResultRow[], deptCode: DnaDepartmentCode): number | null {
+export function calculatePassStats(
+  results: StudentResultRow[],
+  deptCode: DnaDepartmentCode
+): { count: number | null; rate: number | null } {
   const deptResults = results.filter((r) => r.department === deptCode);
-  if (deptResults.length === 0) return null;
+  if (deptResults.length === 0) return { count: null, rate: null };
   const passedCount = deptResults.filter((r) => r.isPassed).length;
-  return (passedCount / deptResults.length) * 100;
+  const rate = (passedCount / deptResults.length) * 100;
+  return { count: passedCount, rate };
 }
 
 /**
- * Calculate Overall Forbidden Rate across all departments in results
+ * Calculate Overall Forbidden Count & Rate across all departments in results
  */
-export function calculateTotalForbiddenRate(results: StudentResultRow[]): number | null {
-  if (results.length === 0) return null;
+export function calculateTotalForbiddenStats(
+  results: StudentResultRow[]
+): { count: number | null; rate: number | null } {
+  if (results.length === 0) return { count: null, rate: null };
   const forbiddenCount = results.filter((r) => r.isForbiddenExam).length;
-  return (forbiddenCount / results.length) * 100;
+  const rate = (forbiddenCount / results.length) * 100;
+  return { count: forbiddenCount, rate };
 }
 
 /**
- * Calculate Overall Pass Rate across all departments in results
+ * Calculate Overall Pass Count & Rate across all departments in results
  */
-export function calculateTotalPassRate(results: StudentResultRow[]): number | null {
-  if (results.length === 0) return null;
+export function calculateTotalPassStats(
+  results: StudentResultRow[]
+): { count: number | null; rate: number | null } {
+  if (results.length === 0) return { count: null, rate: null };
   const passedCount = results.filter((r) => r.isPassed).length;
-  return (passedCount / results.length) * 100;
+  const rate = (passedCount / results.length) * 100;
+  return { count: passedCount, rate };
 }
 
 /**
- * Generate Table 1 Data
+ * Generate Table 1 Data: Thống kê tổng quan học kỳ FA26, Block 1 & Block 2
  */
 export function computeTable1Data(
   enrollmentRows: StudentEnrollmentRow[],
@@ -101,14 +114,17 @@ export function computeTable1Data(
         isSupported: false,
         allCount: 0,
         allPercentage: 0,
+        allForbiddenCount: null,
         allForbiddenRate: null,
         allPassRate: null,
         b1Count: 0,
         b1Percentage: 0,
+        b1ForbiddenCount: null,
         b1ForbiddenRate: null,
         b1PassRate: null,
         b2Count: 0,
         b2Percentage: 0,
+        b2ForbiddenCount: null,
         b2ForbiddenRate: null,
         b2PassRate: null,
       };
@@ -126,15 +142,15 @@ export function computeTable1Data(
     const b1Percentage = totalB1 > 0 ? (deptB1Count / totalB1) * 100 : 0;
     const b2Percentage = totalB2 > 0 ? (deptB2Count / totalB2) * 100 : 0;
 
-    // Rates
-    const b1ForbiddenRate = calculateForbiddenRate(b1LatestResults, dept.code);
-    const b1PassRate = calculatePassRate(b1Week8Results, dept.code);
+    // Rates & Counts
+    const b1Forbidden = calculateForbiddenStats(b1LatestResults, dept.code);
+    const b1Pass = calculatePassStats(b1Week8Results, dept.code);
 
-    const b2ForbiddenRate = calculateForbiddenRate(b2LatestResults, dept.code);
-    const b2PassRate = calculatePassRate(b2Week8Results, dept.code);
+    const b2Forbidden = calculateForbiddenStats(b2LatestResults, dept.code);
+    const b2Pass = calculatePassStats(b2Week8Results, dept.code);
 
-    const allForbiddenRate = calculateForbiddenRate(combinedLatestResults, dept.code);
-    const allPassRate = calculatePassRate(combinedWeek8Results, dept.code);
+    const allForbidden = calculateForbiddenStats(combinedLatestResults, dept.code);
+    const allPass = calculatePassStats(combinedWeek8Results, dept.code);
 
     return {
       stt: index + 1,
@@ -143,43 +159,57 @@ export function computeTable1Data(
       isSupported: true,
       allCount: deptAllCount,
       allPercentage,
-      allForbiddenRate,
-      allPassRate,
+      allForbiddenCount: allForbidden.count,
+      allForbiddenRate: allForbidden.rate,
+      allPassRate: allPass.rate,
       b1Count: deptB1Count,
       b1Percentage,
-      b1ForbiddenRate,
-      b1PassRate,
+      b1ForbiddenCount: b1Forbidden.count,
+      b1ForbiddenRate: b1Forbidden.rate,
+      b1PassRate: b1Pass.rate,
       b2Count: deptB2Count,
       b2Percentage,
-      b2ForbiddenRate,
-      b2PassRate,
+      b2ForbiddenCount: b2Forbidden.count,
+      b2ForbiddenRate: b2Forbidden.rate,
+      b2PassRate: b2Pass.rate,
     };
   });
+
+  const totalAllForbidden = calculateTotalForbiddenStats(combinedLatestResults);
+  const totalAllPass = calculateTotalPassStats(combinedWeek8Results);
+  const totalB1Forbidden = calculateTotalForbiddenStats(b1LatestResults);
+  const totalB1Pass = calculateTotalPassStats(b1Week8Results);
+  const totalB2Forbidden = calculateTotalForbiddenStats(b2LatestResults);
+  const totalB2Pass = calculateTotalPassStats(b2Week8Results);
 
   const totalRow: Table1RowData = {
     stt: 0,
     campus: 'DNA',
-    department: 'CB' as DnaDepartmentCode, // Placeholder label in UI will say "Tổng cơ sở"
+    department: 'CB' as DnaDepartmentCode,
     isSupported: true,
     allCount: totalAll,
     allPercentage: totalAll > 0 ? 100 : 0,
-    allForbiddenRate: calculateTotalForbiddenRate(combinedLatestResults),
-    allPassRate: calculateTotalPassRate(combinedWeek8Results),
+    allForbiddenCount: totalAllForbidden.count,
+    allForbiddenRate: totalAllForbidden.rate,
+    allPassRate: totalAllPass.rate,
     b1Count: totalB1,
     b1Percentage: totalB1 > 0 ? 100 : 0,
-    b1ForbiddenRate: calculateTotalForbiddenRate(b1LatestResults),
-    b1PassRate: calculateTotalPassRate(b1Week8Results),
+    b1ForbiddenCount: totalB1Forbidden.count,
+    b1ForbiddenRate: totalB1Forbidden.rate,
+    b1PassRate: totalB1Pass.rate,
     b2Count: totalB2,
     b2Percentage: totalB2 > 0 ? 100 : 0,
-    b2ForbiddenRate: calculateTotalForbiddenRate(b2LatestResults),
-    b2PassRate: calculateTotalPassRate(b2Week8Results),
+    b2ForbiddenCount: totalB2Forbidden.count,
+    b2ForbiddenRate: totalB2Forbidden.rate,
+    b2PassRate: totalB2Pass.rate,
   };
 
   return { rows, totalRow };
 }
 
 /**
- * Generate Table 2 Data for a specific block (Weekly OKR matrix)
+ * Generate Table 2 Data for a specific block (Weekly OKR Review)
+ * Columns: CS | BM | Tuần 8 - Pass (%) | Tuần 1 [SL Cấm | % Cấm thi] | ... | Tuần 6 [SL Cấm | % Cấm thi]
  */
 export function computeTable2Data(
   weeklyData: BlockWeeklyData
@@ -191,51 +221,80 @@ export function computeTable2Data(
         campus: 'DNA',
         department: dept.code,
         isSupported: false,
-        week1: null,
-        week2: null,
-        week3: null,
-        week4: null,
-        week5: null,
-        week6: null,
-        week8: null,
+        week8PassCount: null,
+        week8PassRate: null,
+        week1Count: null,
+        week1Rate: null,
+        week2Count: null,
+        week2Rate: null,
+        week3Count: null,
+        week3Rate: null,
+        week4Count: null,
+        week4Rate: null,
+        week5Count: null,
+        week5Rate: null,
+        week6Count: null,
+        week6Rate: null,
       };
     }
 
-    const w1Results = weeklyData[1]?.results || [];
-    const w2Results = weeklyData[2]?.results || [];
-    const w3Results = weeklyData[3]?.results || [];
-    const w4Results = weeklyData[4]?.results || [];
-    const w5Results = weeklyData[5]?.results || [];
-    const w6Results = weeklyData[6]?.results || [];
-    const w8Results = weeklyData[8]?.results || [];
+    const w1Stats = calculateForbiddenStats(weeklyData[1]?.results || [], dept.code);
+    const w2Stats = calculateForbiddenStats(weeklyData[2]?.results || [], dept.code);
+    const w3Stats = calculateForbiddenStats(weeklyData[3]?.results || [], dept.code);
+    const w4Stats = calculateForbiddenStats(weeklyData[4]?.results || [], dept.code);
+    const w5Stats = calculateForbiddenStats(weeklyData[5]?.results || [], dept.code);
+    const w6Stats = calculateForbiddenStats(weeklyData[6]?.results || [], dept.code);
+    const w8Stats = calculatePassStats(weeklyData[8]?.results || [], dept.code);
 
     return {
       stt: index + 1,
       campus: 'DNA',
       department: dept.code,
       isSupported: true,
-      week1: calculateForbiddenRate(w1Results, dept.code),
-      week2: calculateForbiddenRate(w2Results, dept.code),
-      week3: calculateForbiddenRate(w3Results, dept.code),
-      week4: calculateForbiddenRate(w4Results, dept.code),
-      week5: calculateForbiddenRate(w5Results, dept.code),
-      week6: calculateForbiddenRate(w6Results, dept.code),
-      week8: calculatePassRate(w8Results, dept.code),
+      week8PassCount: w8Stats.count,
+      week8PassRate: w8Stats.rate,
+      week1Count: w1Stats.count,
+      week1Rate: w1Stats.rate,
+      week2Count: w2Stats.count,
+      week2Rate: w2Stats.rate,
+      week3Count: w3Stats.count,
+      week3Rate: w3Stats.rate,
+      week4Count: w4Stats.count,
+      week4Rate: w4Stats.rate,
+      week5Count: w5Stats.count,
+      week5Rate: w5Stats.rate,
+      week6Count: w6Stats.count,
+      week6Rate: w6Stats.rate,
     };
   });
+
+  const totalW1 = calculateTotalForbiddenStats(weeklyData[1]?.results || []);
+  const totalW2 = calculateTotalForbiddenStats(weeklyData[2]?.results || []);
+  const totalW3 = calculateTotalForbiddenStats(weeklyData[3]?.results || []);
+  const totalW4 = calculateTotalForbiddenStats(weeklyData[4]?.results || []);
+  const totalW5 = calculateTotalForbiddenStats(weeklyData[5]?.results || []);
+  const totalW6 = calculateTotalForbiddenStats(weeklyData[6]?.results || []);
+  const totalW8 = calculateTotalPassStats(weeklyData[8]?.results || []);
 
   const totalRow: Table2RowData = {
     stt: 0,
     campus: 'DNA',
     department: 'CB' as DnaDepartmentCode,
     isSupported: true,
-    week1: calculateTotalForbiddenRate(weeklyData[1]?.results || []),
-    week2: calculateTotalForbiddenRate(weeklyData[2]?.results || []),
-    week3: calculateTotalForbiddenRate(weeklyData[3]?.results || []),
-    week4: calculateTotalForbiddenRate(weeklyData[4]?.results || []),
-    week5: calculateTotalForbiddenRate(weeklyData[5]?.results || []),
-    week6: calculateTotalForbiddenRate(weeklyData[6]?.results || []),
-    week8: calculateTotalPassRate(weeklyData[8]?.results || []),
+    week8PassCount: totalW8.count,
+    week8PassRate: totalW8.rate,
+    week1Count: totalW1.count,
+    week1Rate: totalW1.rate,
+    week2Count: totalW2.count,
+    week2Rate: totalW2.rate,
+    week3Count: totalW3.count,
+    week3Rate: totalW3.rate,
+    week4Count: totalW4.count,
+    week4Rate: totalW4.rate,
+    week5Count: totalW5.count,
+    week5Rate: totalW5.rate,
+    week6Count: totalW6.count,
+    week6Rate: totalW6.rate,
   };
 
   return { rows, totalRow };

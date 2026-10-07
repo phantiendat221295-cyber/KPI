@@ -6,13 +6,14 @@ function formatPercent(val: number | null): string {
   return `${val.toFixed(1)}%`;
 }
 
-function formatNumber(val: number): string {
-  if (val === 0) return '0';
+function formatCount(val: number | null): string {
+  if (val === null || val === undefined) return '-';
   return val.toLocaleString('vi-VN');
 }
 
 /**
  * Export Table 1 and Table 2 (Block 1 & Block 2) into a structured Excel workbook
+ * compliant with FPT Polytechnic Dong Nai (DNA) standards
  */
 export function exportOkrReportToExcel(
   config: SemesterConfig,
@@ -26,32 +27,35 @@ export function exportOkrReportToExcel(
   const wb = XLSX.utils.book_new();
 
   // ==========================================
-  // SHEET 1: BẢNG 1 - TỔNG HỢP FA26 & BLOCK
+  // SHEET 1: BẢNG 1 - TỔNG HỢP HỌC KỲ (FA26, BLOCK 1, BLOCK 2)
   // ==========================================
   const sheet1Data: any[][] = [
-    ['FPT POLYTECHNIC ĐÀ NẴNG (DNA) - BÁO CÁO THỐNG KÊ ĐÀO TẠO & OKR'],
+    ['FPT POLYTECHNIC ĐỒNG NAI (DNA) - BÁO CÁO THỐNG KÊ ĐÀO TẠO & OKR HỌC KỲ'],
     [`Kỳ học: ${config.semesterName} | Thời gian: ${config.startDate} đến ${config.endDate}`],
     [`Block 1: ${config.block1Start} đến ${config.block1End} | Block 2: ${config.block2Start} đến ${config.block2End}`],
     [],
     [
       'STT',
-      'Cơ sở',
+      'CS',
       'Bộ môn',
-      // Toàn kỳ
-      'Số lượt SV (Toàn kỳ)',
-      '% Lượt SV (Toàn kỳ)',
-      'Tỷ lệ cấm thi % (Toàn kỳ)',
-      'Pass % (Toàn kỳ)',
-      // Block 1
+      // Nhóm FA26
+      'Số lượt SV (FA26)',
+      '% Lượt SV (FA26)',
+      'Pass % (FA26)',
+      'SL Cấm thi (FA26)',
+      'Tỷ lệ cấm thi % (FA26)',
+      // Nhóm Block 1
       'Số lượt SV (Block 1)',
       '% Lượt SV (Block 1)',
-      'Tỷ lệ cấm thi % (Block 1)',
       'Pass % (Block 1)',
-      // Block 2
+      'SL Cấm thi (Block 1)',
+      'Tỷ lệ cấm thi % (Block 1)',
+      // Nhóm Block 2
       'Số lượt SV (Block 2)',
       '% Lượt SV (Block 2)',
-      'Tỷ lệ cấm thi % (Block 2)',
       'Pass % (Block 2)',
+      'SL Cấm thi (Block 2)',
+      'Tỷ lệ cấm thi % (Block 2)',
     ],
   ];
 
@@ -73,6 +77,9 @@ export function exportOkrReportToExcel(
         '-',
         '-',
         '-',
+        '-',
+        '-',
+        '-',
       ]);
     } else {
       sheet1Data.push([
@@ -81,16 +88,19 @@ export function exportOkrReportToExcel(
         row.department,
         row.allCount,
         formatPercent(row.allPercentage),
-        formatPercent(row.allForbiddenRate),
         formatPercent(row.allPassRate),
+        formatCount(row.allForbiddenCount),
+        formatPercent(row.allForbiddenRate),
         row.b1Count,
         formatPercent(row.b1Percentage),
-        formatPercent(row.b1ForbiddenRate),
         formatPercent(row.b1PassRate),
+        formatCount(row.b1ForbiddenCount),
+        formatPercent(row.b1ForbiddenRate),
         row.b2Count,
         formatPercent(row.b2Percentage),
-        formatPercent(row.b2ForbiddenRate),
         formatPercent(row.b2PassRate),
+        formatCount(row.b2ForbiddenCount),
+        formatPercent(row.b2ForbiddenRate),
       ]);
     }
   });
@@ -102,77 +112,95 @@ export function exportOkrReportToExcel(
     'Tổng cơ sở',
     table1Total.allCount,
     formatPercent(table1Total.allPercentage),
-    formatPercent(table1Total.allForbiddenRate),
     formatPercent(table1Total.allPassRate),
+    formatCount(table1Total.allForbiddenCount),
+    formatPercent(table1Total.allForbiddenRate),
     table1Total.b1Count,
     formatPercent(table1Total.b1Percentage),
-    formatPercent(table1Total.b1ForbiddenRate),
     formatPercent(table1Total.b1PassRate),
+    formatCount(table1Total.b1ForbiddenCount),
+    formatPercent(table1Total.b1ForbiddenRate),
     table1Total.b2Count,
     formatPercent(table1Total.b2Percentage),
-    formatPercent(table1Total.b2ForbiddenRate),
     formatPercent(table1Total.b2PassRate),
+    formatCount(table1Total.b2ForbiddenCount),
+    formatPercent(table1Total.b2ForbiddenRate),
   ]);
 
   const ws1 = XLSX.utils.aoa_to_sheet(sheet1Data);
-
-  // Set column widths
   ws1['!cols'] = [
     { wch: 6 },
-    { wch: 10 },
+    { wch: 8 },
     { wch: 16 },
-    { wch: 22 },
-    { wch: 20 },
-    { wch: 24 },
+    // FA26
     { wch: 18 },
-    { wch: 22 },
+    { wch: 16 },
+    { wch: 14 },
+    { wch: 16 },
     { wch: 20 },
-    { wch: 24 },
+    // Block 1
     { wch: 18 },
-    { wch: 22 },
+    { wch: 16 },
+    { wch: 14 },
+    { wch: 16 },
     { wch: 20 },
-    { wch: 24 },
+    // Block 2
     { wch: 18 },
+    { wch: 16 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 20 },
   ];
-
-  XLSX.utils.book_append_sheet(wb, ws1, 'Bang 1 - Thong ke FA26');
+  XLSX.utils.book_append_sheet(wb, ws1, 'Bang 1 - Tong Hop FA26');
 
   // ==========================================
-  // SHEET 2: BẢNG 2 - OKR THEO TUẦN BLOCK 1
+  // SHEET 2: BẢNG 2 - REVIEW TIẾN ĐỘ OKR BLOCK 1
   // ==========================================
   const sheet2Data: any[][] = [
-    ['FPT POLYTECHNIC ĐÀ NẴNG (DNA) - THEO DÕI OKR HÀNG TUẦN BLOCK 1'],
-    [`Giai đoạn: ${config.block1Start} đến ${config.block1End}`],
+    ['FPT POLYTECHNIC ĐỒNG NAI (DNA) - REVIEW TIẾN ĐỘ OKR HÀNG TUẦN BLOCK 1'],
+    [`Thời gian: ${config.block1Start} đến ${config.block1End}`],
     [],
     [
       'STT',
-      'Cơ sở',
+      'CS',
       'Bộ môn',
-      'Tuần 1 (Cấm thi %)',
-      'Tuần 2 (Cấm thi %)',
-      'Tuần 3 (Cấm thi %)',
-      'Tuần 4 (Cấm thi %)',
-      'Tuần 5 (Cấm thi %)',
-      'Tuần 6 (Cấm thi %)',
-      'Tuần 8 (Pass %)',
+      'Tuần 8 - Pass (%)',
+      'Tuần 1 (SL Cấm)',
+      'Tuần 1 (% Cấm)',
+      'Tuần 2 (SL Cấm)',
+      'Tuần 2 (% Cấm)',
+      'Tuần 3 (SL Cấm)',
+      'Tuần 3 (% Cấm)',
+      'Tuần 4 (SL Cấm)',
+      'Tuần 4 (% Cấm)',
+      'Tuần 5 (SL Cấm)',
+      'Tuần 5 (% Cấm)',
+      'Tuần 6 (SL Cấm)',
+      'Tuần 6 (% Cấm)',
     ],
   ];
 
   table2B1Rows.forEach((row) => {
     if (!row.isSupported) {
-      sheet2Data.push([row.stt, row.campus, row.department, '-', '-', '-', '-', '-', '-', '-']);
+      sheet2Data.push([row.stt, row.campus, row.department, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-']);
     } else {
       sheet2Data.push([
         row.stt,
         row.campus,
         row.department,
-        formatPercent(row.week1),
-        formatPercent(row.week2),
-        formatPercent(row.week3),
-        formatPercent(row.week4),
-        formatPercent(row.week5),
-        formatPercent(row.week6),
-        formatPercent(row.week8),
+        formatPercent(row.week8PassRate),
+        formatCount(row.week1Count),
+        formatPercent(row.week1Rate),
+        formatCount(row.week2Count),
+        formatPercent(row.week2Rate),
+        formatCount(row.week3Count),
+        formatPercent(row.week3Rate),
+        formatCount(row.week4Count),
+        formatPercent(row.week4Rate),
+        formatCount(row.week5Count),
+        formatPercent(row.week5Rate),
+        formatCount(row.week6Count),
+        formatPercent(row.week6Rate),
       ]);
     }
   });
@@ -181,66 +209,90 @@ export function exportOkrReportToExcel(
     '',
     'DNA',
     'Tổng cơ sở',
-    formatPercent(table2B1Total.week1),
-    formatPercent(table2B1Total.week2),
-    formatPercent(table2B1Total.week3),
-    formatPercent(table2B1Total.week4),
-    formatPercent(table2B1Total.week5),
-    formatPercent(table2B1Total.week6),
-    formatPercent(table2B1Total.week8),
+    formatPercent(table2B1Total.week8PassRate),
+    formatCount(table2B1Total.week1Count),
+    formatPercent(table2B1Total.week1Rate),
+    formatCount(table2B1Total.week2Count),
+    formatPercent(table2B1Total.week2Rate),
+    formatCount(table2B1Total.week3Count),
+    formatPercent(table2B1Total.week3Rate),
+    formatCount(table2B1Total.week4Count),
+    formatPercent(table2B1Total.week4Rate),
+    formatCount(table2B1Total.week5Count),
+    formatPercent(table2B1Total.week5Rate),
+    formatCount(table2B1Total.week6Count),
+    formatPercent(table2B1Total.week6Rate),
   ]);
 
   const ws2 = XLSX.utils.aoa_to_sheet(sheet2Data);
   ws2['!cols'] = [
     { wch: 6 },
-    { wch: 10 },
-    { wch: 16 },
+    { wch: 8 },
+    { wch: 14 },
     { wch: 18 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 18 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 15 },
   ];
   XLSX.utils.book_append_sheet(wb, ws2, 'Bang 2 - OKR Block 1');
 
   // ==========================================
-  // SHEET 3: BẢNG 2 - OKR THEO TUẦN BLOCK 2
+  // SHEET 3: BẢNG 2 - REVIEW TIẾN ĐỘ OKR BLOCK 2
   // ==========================================
   const sheet3Data: any[][] = [
-    ['FPT POLYTECHNIC ĐÀ NẴNG (DNA) - THEO DÕI OKR HÀNG TUẦN BLOCK 2'],
-    [`Giai đoạn: ${config.block2Start} đến ${config.block2End}`],
+    ['FPT POLYTECHNIC ĐỒNG NAI (DNA) - REVIEW TIẾN ĐỘ OKR HÀNG TUẦN BLOCK 2'],
+    [`Thời gian: ${config.block2Start} đến ${config.block2End}`],
     [],
     [
       'STT',
-      'Cơ sở',
+      'CS',
       'Bộ môn',
-      'Tuần 1 (Cấm thi %)',
-      'Tuần 2 (Cấm thi %)',
-      'Tuần 3 (Cấm thi %)',
-      'Tuần 4 (Cấm thi %)',
-      'Tuần 5 (Cấm thi %)',
-      'Tuần 6 (Cấm thi %)',
-      'Tuần 8 (Pass %)',
+      'Tuần 8 - Pass (%)',
+      'Tuần 1 (SL Cấm)',
+      'Tuần 1 (% Cấm)',
+      'Tuần 2 (SL Cấm)',
+      'Tuần 2 (% Cấm)',
+      'Tuần 3 (SL Cấm)',
+      'Tuần 3 (% Cấm)',
+      'Tuần 4 (SL Cấm)',
+      'Tuần 4 (% Cấm)',
+      'Tuần 5 (SL Cấm)',
+      'Tuần 5 (% Cấm)',
+      'Tuần 6 (SL Cấm)',
+      'Tuần 6 (% Cấm)',
     ],
   ];
 
   table2B2Rows.forEach((row) => {
     if (!row.isSupported) {
-      sheet3Data.push([row.stt, row.campus, row.department, '-', '-', '-', '-', '-', '-', '-']);
+      sheet3Data.push([row.stt, row.campus, row.department, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-']);
     } else {
       sheet3Data.push([
         row.stt,
         row.campus,
         row.department,
-        formatPercent(row.week1),
-        formatPercent(row.week2),
-        formatPercent(row.week3),
-        formatPercent(row.week4),
-        formatPercent(row.week5),
-        formatPercent(row.week6),
-        formatPercent(row.week8),
+        formatPercent(row.week8PassRate),
+        formatCount(row.week1Count),
+        formatPercent(row.week1Rate),
+        formatCount(row.week2Count),
+        formatPercent(row.week2Rate),
+        formatCount(row.week3Count),
+        formatPercent(row.week3Rate),
+        formatCount(row.week4Count),
+        formatPercent(row.week4Rate),
+        formatCount(row.week5Count),
+        formatPercent(row.week5Rate),
+        formatCount(row.week6Count),
+        formatPercent(row.week6Rate),
       ]);
     }
   });
@@ -249,31 +301,42 @@ export function exportOkrReportToExcel(
     '',
     'DNA',
     'Tổng cơ sở',
-    formatPercent(table2B2Total.week1),
-    formatPercent(table2B2Total.week2),
-    formatPercent(table2B2Total.week3),
-    formatPercent(table2B2Total.week4),
-    formatPercent(table2B2Total.week5),
-    formatPercent(table2B2Total.week6),
-    formatPercent(table2B2Total.week8),
+    formatPercent(table2B2Total.week8PassRate),
+    formatCount(table2B2Total.week1Count),
+    formatPercent(table2B2Total.week1Rate),
+    formatCount(table2B2Total.week2Count),
+    formatPercent(table2B2Total.week2Rate),
+    formatCount(table2B2Total.week3Count),
+    formatPercent(table2B2Total.week3Rate),
+    formatCount(table2B2Total.week4Count),
+    formatPercent(table2B2Total.week4Rate),
+    formatCount(table2B2Total.week5Count),
+    formatPercent(table2B2Total.week5Rate),
+    formatCount(table2B2Total.week6Count),
+    formatPercent(table2B2Total.week6Rate),
   ]);
 
   const ws3 = XLSX.utils.aoa_to_sheet(sheet3Data);
   ws3['!cols'] = [
     { wch: 6 },
-    { wch: 10 },
-    { wch: 16 },
+    { wch: 8 },
+    { wch: 14 },
     { wch: 18 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 18 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 15 },
   ];
   XLSX.utils.book_append_sheet(wb, ws3, 'Bang 2 - OKR Block 2');
 
-  // Trigger download
   const dateStr = new Date().toISOString().slice(0, 10);
   XLSX.writeFile(wb, `Bao_Cao_OKR_DNA_${config.semesterName.replace(/[^a-zA-Z0-9]/g, '_')}_${dateStr}.xlsx`);
 }
@@ -308,13 +371,13 @@ export function downloadSampleTemplate(type: 'mon_bomon' | 'danh_sach_lop' | 'ex
   } else if (type === 'danh_sach_lop') {
     const data = [
       ['Mã SV', 'Họ tên', 'Mã môn', 'Lớp', 'Ngày bắt đầu'],
-      ['SV0001', 'Nguyễn Văn A', 'MUL101', 'TK19301', '14/09/2026'],
-      ['SV0002', 'Trần Thị B', 'SOF203', 'WD19301', '14/09/2026'],
-      ['SV0003', 'Lê Hoàng C', 'BUS101', 'QT19301', '14/09/2026'],
-      ['SV0004', 'Phạm Minh D', 'COM108', 'IT19301', '14/09/2026'],
-      ['SV0005', 'Võ Thị E', 'TOU101', 'KS19301', '02/11/2026'],
-      ['SV0006', 'Đặng Tuấn F', 'ENT1125', 'NN19301', '02/11/2026'],
-      ['SV0007', 'Ngô Quốc G', 'VIE101', 'CB19301', '02/11/2026'],
+      ['PS0001', 'Nguyễn Văn A', 'MUL101', 'TK19301', '14/09/2026'],
+      ['PS0002', 'Trần Thị B', 'SOF203', 'WD19301', '14/09/2026'],
+      ['PS0003', 'Lê Hoàng C', 'BUS101', 'QT19301', '14/09/2026'],
+      ['PS0004', 'Phạm Minh D', 'COM108', 'IT19301', '14/09/2026'],
+      ['PS0005', 'Võ Thị E', 'TOU101', 'KS19301', '02/11/2026'],
+      ['PS0006', 'Đặng Tuấn F', 'ENT1125', 'NN19301', '02/11/2026'],
+      ['PS0007', 'Ngô Quốc G', 'VIE101', 'CB19301', '02/11/2026'],
     ];
     const ws = XLSX.utils.aoa_to_sheet(data);
     XLSX.utils.book_append_sheet(wb, ws, 'DanhSach');
@@ -322,10 +385,10 @@ export function downloadSampleTemplate(type: 'mon_bomon' | 'danh_sach_lop' | 'ex
   } else {
     const data = [
       ['Mã SV', 'Họ tên', 'Mã môn', 'Lớp', 'Trạng thái', 'Ngày đầu'],
-      ['SV0001', 'Nguyễn Văn A', 'MUL101', 'TK19301', 'Passing', '14/09/2026'],
-      ['SV0002', 'Trần Thị B', 'SOF203', 'WD19301', 'Attendance Failed', '14/09/2026'],
-      ['SV0003', 'Lê Hoàng C', 'BUS101', 'QT19301', 'On-going Assessment Fail', '14/09/2026'],
-      ['SV0004', 'Phạm Minh D', 'COM108', 'IT19301', 'Studying', '14/09/2026'],
+      ['PS0001', 'Nguyễn Văn A', 'MUL101', 'TK19301', 'Passing', '14/09/2026'],
+      ['PS0002', 'Trần Thị B', 'SOF203', 'WD19301', 'Attendance Failed', '14/09/2026'],
+      ['PS0003', 'Lê Hoàng C', 'BUS101', 'QT19301', 'On-going Assessment Fail', '14/09/2026'],
+      ['PS0004', 'Phạm Minh D', 'COM108', 'IT19301', 'Studying', '14/09/2026'],
     ];
     const ws = XLSX.utils.aoa_to_sheet(data);
     XLSX.utils.book_append_sheet(wb, ws, 'KetQua');

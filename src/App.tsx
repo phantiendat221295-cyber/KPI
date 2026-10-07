@@ -37,7 +37,7 @@ export default function App() {
   const [customMappings, setCustomMappings] = useState<Record<string, DnaDepartmentCode>>({});
   const [subjectFileName, setSubjectFileName] = useState<string | null>(null);
 
-  // 3. Raw Parsed Files & Enrollment State (ZERO MOCK DATA: starts completely empty)
+  // 3. Raw Parsed Files & Enrollment State (ZERO MOCK DATA)
   const [enrollmentFileName, setEnrollmentFileName] = useState<string | null>(null);
   const [rawEnrollmentFile, setRawEnrollmentFile] = useState<File | null>(null);
   const [enrollmentRows, setEnrollmentRows] = useState<StudentEnrollmentRow[]>([]);
@@ -47,6 +47,7 @@ export default function App() {
   const [block2Weekly, setBlock2Weekly] = useState<BlockWeeklyData>({});
 
   // 5. UI State
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [isConfigModalOpen, setIsConfigModalOpen] = useState<boolean>(false);
   const [isDeptModalOpen, setIsDeptModalOpen] = useState<boolean>(false);
@@ -90,7 +91,7 @@ export default function App() {
         `Đã nạp ${count} mã môn và ánh xạ vào các bộ môn DNA từ "${file.name}".`
       );
 
-      // Re-map existing enrollment rows if already loaded
+      // Re-map existing enrollment rows
       if (enrollmentRows.length > 0) {
         setEnrollmentRows((prev) =>
           prev.map((r) => ({
@@ -113,7 +114,6 @@ export default function App() {
     setCustomMappings({});
     setSubjectFileName(null);
     addToast('info', 'Đã xóa file danh mục', 'Hệ thống đã quay về từ điển tiền tố mặc định của DNA.');
-    // Re-map existing enrollment rows
     if (enrollmentRows.length > 0) {
       setEnrollmentRows((prev) =>
         prev.map((r) => ({
@@ -311,17 +311,19 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex bg-slate-50 text-slate-800 antialiased font-sans">
-      {/* 1. LEFT SIDEBAR (CLEAN LIGHT THEME) */}
+    <div className="min-h-screen flex bg-[#F9FAFB] text-gray-800 antialiased font-sans">
+      {/* 1. LEFT SIDEBAR (PORTAL AP FPT POLYTECHNIC ĐỒNG NAI) */}
       <Sidebar
         activeView="statistics"
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         onOpenConfig={() => setIsConfigModalOpen(true)}
         onOpenDepartment={() => setIsDeptModalOpen(true)}
         onExportExcel={handleExportExcel}
         hasData={hasEnrollmentData || hasExportData}
       />
 
-      {/* 2. MAIN CONTENT AREA */}
+      {/* 2. MAIN WORKSPACE */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         {/* Top Header */}
         <Header
@@ -329,10 +331,11 @@ export default function App() {
           searchTerm={searchTerm}
           onSearchChange={setSearchTerm}
           onOpenConfig={() => setIsConfigModalOpen(true)}
+          onExportExcel={handleExportExcel}
         />
 
         {/* Main Body */}
-        <main className="flex-1 p-6 space-y-6 max-w-7xl mx-auto w-full">
+        <main className="flex-1 p-5 space-y-4 max-w-7xl mx-auto w-full">
           {/* Summary KPI Cards (Strict Zero Mock Data) */}
           <SummaryCards
             hasEnrollmentData={hasEnrollmentData}

@@ -1,5 +1,13 @@
-import React from 'react';
-import { Search, ChevronRight, User, ShieldCheck } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+  Search,
+  Download,
+  Moon,
+  Sun,
+  User,
+  ChevronRight,
+  ShieldCheck,
+} from 'lucide-react';
 import { SemesterConfig } from '../types';
 
 interface HeaderProps {
@@ -7,6 +15,7 @@ interface HeaderProps {
   searchTerm: string;
   onSearchChange: (val: string) => void;
   onOpenConfig: () => void;
+  onExportExcel: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -14,54 +23,76 @@ export const Header: React.FC<HeaderProps> = ({
   searchTerm,
   onSearchChange,
   onOpenConfig,
+  onExportExcel,
 }) => {
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
   return (
-    <header className="sticky top-0 z-30 h-16 bg-white/90 backdrop-blur-md border-b border-slate-200 px-6 flex items-center justify-between">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-slate-500">
-        <span className="font-medium text-slate-600 hover:text-slate-900 transition-colors">
+    <header className="sticky top-0 z-30 h-16 bg-white border-b border-gray-200 px-6 flex items-center justify-between">
+      {/* Left: AP Style Breadcrumb */}
+      <div className="flex items-center gap-2 text-xs md:text-sm text-gray-500 font-normal">
+        <span className="text-gray-500 hover:text-gray-800 transition-colors">
           Quản lý lớp học
         </span>
-        <ChevronRight className="w-4 h-4 text-slate-400" />
-        <span className="font-semibold text-slate-900 flex items-center gap-1.5">
-          Thống kê OKR & Tỷ lệ cấm thi
+        <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+        <div className="flex items-center gap-1.5">
+          <span className="font-semibold text-[#0066B3]">
+            Thống kê OKR &amp; Tỷ lệ cấm thi | DNA
+          </span>
           <button
             onClick={onOpenConfig}
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-xs font-semibold hover:bg-blue-100 transition-colors border border-blue-200"
-            title="Bấm để cấu hình mốc ngày"
+            className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-[#0066B3] hover:bg-blue-100 border border-blue-200 transition-colors"
+            title="Nhấn để tùy chỉnh mốc kỳ & block"
           >
-            <span>[{config.semesterName}]</span>
+            {config.semesterName}
           </button>
-        </span>
+        </div>
       </div>
 
-      {/* Right controls: Search & User */}
-      <div className="flex items-center gap-4">
-        {/* Quick search */}
-        <div className="relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+      {/* Right: AP Header Utility Actions */}
+      <div className="flex items-center gap-3">
+        {/* Search Input */}
+        <div className="relative hidden sm:block">
+          <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Tìm nhanh bộ môn (CNTT, Biz, TKĐH...)..."
-            className="w-64 pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066B3]/20 focus:border-[#0066B3] text-slate-800 placeholder-slate-400 transition-all"
+            placeholder="Tìm kiếm bộ môn..."
+            className="w-48 pl-8 pr-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-[#0066B3] focus:border-[#0066B3] text-gray-800 placeholder-gray-400"
           />
         </div>
 
-        {/* User Info */}
-        <div className="flex items-center gap-3 pl-3 border-l border-slate-200">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#0066B3] to-[#F37021] flex items-center justify-center text-white font-bold text-xs shadow-sm ring-2 ring-white">
+        {/* Quick Download Excel Button */}
+        <button
+          onClick={onExportExcel}
+          className="p-2 rounded-md text-gray-500 hover:text-[#0066B3] hover:bg-gray-100 transition-colors"
+          title="Tải báo cáo Excel (.xlsx)"
+        >
+          <Download className="w-4 h-4" />
+        </button>
+
+        {/* Dark / Light Toggle icon */}
+        <button
+          onClick={() => setIsDarkMode(!isDarkMode)}
+          className="p-2 rounded-md text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors"
+          title={isDarkMode ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
+        >
+          {isDarkMode ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4" />}
+        </button>
+
+        {/* User Badge: Xin chào, Đạt Pic */}
+        <div className="flex items-center gap-2.5 pl-3 border-l border-gray-200">
+          <div className="w-8 h-8 rounded-full bg-[#0066B3] flex items-center justify-center text-white font-semibold text-xs shadow-2xs">
             <User className="w-4 h-4" />
           </div>
-          <div className="flex flex-col text-right">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-bold text-slate-800">Xin chào, Đạt</span>
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800">
-                <ShieldCheck className="w-3 h-3 text-emerald-600 inline" /> DNA
-              </span>
-            </div>
-            <span className="text-[11px] text-slate-500 font-medium">QLĐT Cơ sở DNA</span>
+          <div className="hidden lg:flex flex-col text-right">
+            <span className="text-xs font-semibold text-gray-800 leading-tight">
+              Xin chào, Đạt Pic
+            </span>
+            <span className="text-[11px] text-gray-500 leading-tight">
+              Cán bộ Đào tạo - FPT Polytechnic Đồng Nai
+            </span>
           </div>
         </div>
       </div>

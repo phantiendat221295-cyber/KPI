@@ -11,20 +11,20 @@ export const DEFAULT_SEMESTER_CONFIG: SemesterConfig = {
 };
 
 export const DNA_DEPARTMENTS: DepartmentInfo[] = [
-  { code: 'Biz', name: 'Kinh doanh & Quản trị', isSupportedAtDna: true, color: 'text-amber-600 bg-amber-50 border-amber-200' },
-  { code: 'TMĐT', name: 'Thương mại điện tử & Marketing số', isSupportedAtDna: true, color: 'text-orange-600 bg-orange-50 border-orange-200' },
-  { code: 'CNTT', name: 'Công nghệ thông tin & Mạng máy tính', isSupportedAtDna: true, color: 'text-blue-600 bg-blue-50 border-blue-200' },
-  { code: 'UDPM', name: 'Ứng dụng phần mềm & Lập trình Web/Mobile', isSupportedAtDna: true, color: 'text-indigo-600 bg-indigo-50 border-indigo-200' },
-  { code: 'TKĐH', name: 'Thiết kế đồ họa & Mỹ thuật số', isSupportedAtDna: true, color: 'text-purple-600 bg-purple-50 border-purple-200' },
-  { code: 'DLNHKS', name: 'Du lịch - Nhà hàng - Khách sạn', isSupportedAtDna: true, color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
-  { code: 'NN', name: 'Ngôn ngữ (Tiếng Anh, Trung, Hàn)', isSupportedAtDna: true, color: 'text-cyan-600 bg-cyan-50 border-cyan-200' },
-  { code: 'CB', name: 'Bộ môn Cơ bản & Chính trị - Kỹ năng', isSupportedAtDna: true, color: 'text-teal-600 bg-teal-50 border-teal-200' },
-  { code: 'Cơ điện', name: 'Cơ điện tử (Không đào tạo tại DNA)', isSupportedAtDna: false, color: 'text-slate-400 bg-slate-50 border-slate-200' },
-  { code: 'PKB', name: 'Phổ thông Cao đẳng PKB (Không đào tạo tại DNA)', isSupportedAtDna: false, color: 'text-slate-400 bg-slate-50 border-slate-200' },
+  { code: 'Biz', name: 'Kinh tế & Quản trị kinh doanh', isSupportedAtDna: true, color: 'text-amber-700 bg-amber-50 border-amber-200' },
+  { code: 'TMĐT', name: 'Thương mại điện tử & Digital Marketing', isSupportedAtDna: true, color: 'text-orange-700 bg-orange-50 border-orange-200' },
+  { code: 'CNTT', name: 'Công nghệ thông tin & Mạng máy tính', isSupportedAtDna: true, color: 'text-blue-700 bg-blue-50 border-blue-200' },
+  { code: 'UDPM', name: 'Ứng dụng phần mềm', isSupportedAtDna: true, color: 'text-indigo-700 bg-indigo-50 border-indigo-200' },
+  { code: 'TKĐH', name: 'Thiết kế đồ họa', isSupportedAtDna: true, color: 'text-purple-700 bg-purple-50 border-purple-200' },
+  { code: 'DLNHKS', name: 'Du lịch - Nhà hàng - Khách sạn', isSupportedAtDna: true, color: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
+  { code: 'NN', name: 'Ngôn ngữ (Tiếng Anh, Trung, Hàn)', isSupportedAtDna: true, color: 'text-cyan-700 bg-cyan-50 border-cyan-200' },
+  { code: 'CB', name: 'Cơ bản (Chính trị, Kỹ năng, GDTC)', isSupportedAtDna: true, color: 'text-teal-700 bg-teal-50 border-teal-200' },
+  { code: 'Cơ điện', name: 'Cơ điện tử (Không có tại DNA)', isSupportedAtDna: false, color: 'text-gray-400 bg-gray-50 border-gray-200' },
+  { code: 'PKB', name: 'Phổ thông Cao đẳng PKB (Không có tại DNA)', isSupportedAtDna: false, color: 'text-gray-400 bg-gray-50 border-gray-200' },
 ];
 
 /**
- * Prefix mapping rules for FPT Polytechnic DNA
+ * Prefix mapping rules for FPT Polytechnic Đồng Nai (DNA)
  */
 export const BUILTIN_PREFIX_MAPPING: { prefix: string; department: DnaDepartmentCode }[] = [
   // Thiết kế đồ họa
