@@ -1,12 +1,14 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { DEFAULT_SEMESTER_CONFIG } from './constants';
 import {
   BlockType,
   BlockWeeklyData,
+  CloudSyncPayload,
   DnaDepartmentCode,
   SemesterConfig,
   StudentEnrollmentRow,
   ToastMessage,
+  UserRole,
 } from './types';
 import {
   parseSubjectDepartmentFile,
@@ -17,6 +19,13 @@ import {
 import { determineBlockFromDate } from './utils/dateUtils';
 import { computeTable1Data, computeTable2Data } from './utils/calculator';
 import { exportOkrReportToExcel } from './utils/excelExport';
+import {
+  APPS_SCRIPT_STORAGE_KEY,
+  USER_ROLE_STORAGE_KEY,
+  LAST_SYNC_STORAGE_KEY,
+  fetchStateFromGoogleSheets,
+  syncStateToGoogleSheets,
+} from './utils/cloudSync';
 
 // Components
 import { Header } from './components/Header';
@@ -30,23 +39,40 @@ import { DepartmentModal } from './components/DepartmentModal';
 import { ToastContainer } from './components/Toast';
 
 export default function App() {
-  // 1. Configuration State
+  // 1. Configuration & Cloud API URL
   const [config, setConfig] = useState<SemesterConfig>(DEFAULT_SEMESTER_CONFIG);
+  const [appsScriptUrl, setAppsScriptUrl] = useState<string>(() => {
+    return localStorage.getItem(APPS_SCRIPT_STORAGE_KEY) || '';
+  });
 
-  // 2. Custom Subject Mappings (Dictionary)
+  // 2. User Role & Cloud Sync Metadata
+  const [userRole, setUserRole] = useState<UserRole>(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const roleParam = urlParams.get('role');
+    if (roleParam === 'viewer' || roleParam === 'admin') return roleParam;
+    return (localStorage.getItem(USER_ROLE_STORAGE_KEY) as UserRole) || 'admin';
+  });
+
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(() => {
+    return localStorage.getItem(LAST_SYNC_STORAGE_KEY) || null;
+  });
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [isFetchingCloud, setIsFetchingCloud] = useState<boolean>(false);
+
+  // 3. Custom Subject Mappings (Dictionary)
   const [customMappings, setCustomMappings] = useState<Record<string, DnaDepartmentCode>>({});
   const [subjectFileName, setSubjectFileName] = useState<string | null>(null);
 
-  // 3. Raw Parsed Files & Enrollment State (ZERO MOCK DATA)
+  // 4. Raw Parsed Files & Enrollment State (Starts Empty: ZERO MOCK DATA)
   const [enrollmentFileName, setEnrollmentFileName] = useState<string | null>(null);
   const [rawEnrollmentFile, setRawEnrollmentFile] = useState<File | null>(null);
   const [enrollmentRows, setEnrollmentRows] = useState<StudentEnrollmentRow[]>([]);
 
-  // 4. Weekly Export Files State for Block 1 and Block 2
+  // 5. Weekly Export Files State for Block 1 and Block 2
   const [block1Weekly, setBlock1Weekly] = useState<BlockWeeklyData>({});
   const [block2Weekly, setBlock2Weekly] = useState<BlockWeeklyData>({});
 
-  // 5. UI State
+  // 6. UI Navigation & Search State
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [isConfigModalOpen, setIsConfigModalOpen] = useState<boolean>(false);
@@ -65,6 +91,128 @@ export default function App() {
   const dismissToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
+
+  // ==========================================
+  // GOOGLE SHEETS CLOUD SYNC LOGIC
+  // ==========================================
+
+  // Apply Cloud Data Helper
+  const applyCloudPayload = useCallback((data: CloudSyncPayload) => {
+    if (data.config) setConfig(data.config);
+    if (data.customMappings) setCustomMappings(data.customMappings);
+    if (data.subjectFileName !== undefined) setSubjectFileName(data.subjectFileName);
+    if (data.enrollmentFileName !== undefined) setEnrollmentFileName(data.enrollmentFileName);
+    if (data.enrollmentRows) setEnrollmentRows(data.enrollmentRows);
+    if (data.block1Weekly) setBlock1Weekly(data.block1Weekly);
+    if (data.block2Weekly) setBlock2Weekly(data.block2Weekly);
+
+    const timestamp = data.updatedAt || new Date().toLocaleString('vi-VN');
+    setLastSyncedAt(timestamp);
+    localStorage.setItem(LAST_SYNC_STORAGE_KEY, timestamp);
+  }, []);
+
+  // 1. AUTO-FETCH ON LOAD
+  useEffect(() => {
+    if (!appsScriptUrl || !appsScriptUrl.trim()) return;
+
+    let isMounted = true;
+    const autoFetch = async () => {
+      setIsFetchingCloud(true);
+      const res = await fetchStateFromGoogleSheets(appsScriptUrl);
+      if (!isMounted) return;
+      setIsFetchingCloud(false);
+
+      if (res.success && res.data) {
+        applyCloudPayload(res.data);
+        addToast(
+          'success',
+          'Đồng bộ dữ liệu trực tuyến',
+          `Đã tải dữ liệu mới nhất từ Google Sheets (${res.data.enrollmentRows?.length || 0} lượt SV).`
+        );
+      }
+    };
+
+    autoFetch();
+    return () => {
+      isMounted = false;
+    };
+  }, [appsScriptUrl, applyCloudPayload, addToast]);
+
+  // 2. MANUAL REFRESH FROM CLOUD
+  const handleFetchFromCloud = async () => {
+    if (!appsScriptUrl) {
+      setIsConfigModalOpen(true);
+      addToast('info', 'Chưa có URL API', 'Vui lòng nhập Google Apps Script URL để đồng bộ.');
+      return;
+    }
+
+    setIsFetchingCloud(true);
+    const res = await fetchStateFromGoogleSheets(appsScriptUrl);
+    setIsFetchingCloud(false);
+
+    if (res.success && res.data) {
+      applyCloudPayload(res.data);
+      addToast(
+        'success',
+        'Làm mới thành công',
+        `Đã cập nhật dữ liệu mới nhất từ Google Sheets lúc ${res.data.updatedAt || 'vừa xong'}.`
+      );
+    } else {
+      addToast('warning', 'Chưa thể lấy dữ liệu', res.message || 'Không tìm thấy dữ liệu trên trang tính.');
+    }
+  };
+
+  // 3. SYNC TO CLOUD (POST)
+  const handleSyncToCloud = async () => {
+    if (!appsScriptUrl) {
+      setIsConfigModalOpen(true);
+      addToast('info', 'Chưa cấu hình Google Apps Script URL', 'Vui lòng nhập URL Web App trong modal Cấu hình.');
+      return;
+    }
+
+    const payload: CloudSyncPayload = {
+      updatedAt: new Date().toLocaleString('vi-VN'),
+      updatedBy: 'Đạt Pic (Cán bộ Đào tạo DNA)',
+      config,
+      customMappings,
+      subjectFileName,
+      enrollmentFileName,
+      enrollmentRows,
+      block1Weekly,
+      block2Weekly,
+    };
+
+    setIsSyncing(true);
+    const res = await syncStateToGoogleSheets(appsScriptUrl, payload);
+    setIsSyncing(false);
+
+    if (res.success) {
+      const nowStr = new Date().toLocaleString('vi-VN');
+      setLastSyncedAt(nowStr);
+      localStorage.setItem(LAST_SYNC_STORAGE_KEY, nowStr);
+      addToast('success', 'Đồng bộ lên Cloud thành công', 'Đã lưu dữ liệu lên Google Sheets! Người khác có thể xem ngay.');
+    } else {
+      addToast('error', 'Lỗi đồng bộ lên Google Sheets', res.message || 'Không thể gửi dữ liệu lên máy chủ.');
+    }
+  };
+
+  // 4. TEST CONNECTION
+  const handleTestConnection = async (testUrl: string): Promise<boolean> => {
+    const res = await fetchStateFromGoogleSheets(testUrl);
+    return res.success;
+  };
+
+  // 5. TOGGLE ROLE
+  const handleToggleRole = () => {
+    const nextRole: UserRole = userRole === 'admin' ? 'viewer' : 'admin';
+    setUserRole(nextRole);
+    localStorage.setItem(USER_ROLE_STORAGE_KEY, nextRole);
+    addToast(
+      'info',
+      `Đã chuyển sang ${nextRole === 'admin' ? 'Chế độ Quản trị' : 'Chế độ Người xem'}`,
+      nextRole === 'admin' ? 'Bạn có thể upload và đồng bộ dữ liệu.' : 'Chế độ xem bảng báo cáo trực quan.'
+    );
+  };
 
   // ==========================================
   // FILE HANDLERS
@@ -226,9 +374,11 @@ export default function App() {
   };
 
   // Handler 4: Config Update
-  const handleSaveConfig = (newConfig: SemesterConfig) => {
+  const handleSaveConfig = (newConfig: SemesterConfig, newUrl: string) => {
     setConfig(newConfig);
-    addToast('success', 'Đã cập nhật mốc kỳ', `Mốc thời gian kỳ ${newConfig.semesterName} đã được áp dụng.`);
+    setAppsScriptUrl(newUrl);
+    localStorage.setItem(APPS_SCRIPT_STORAGE_KEY, newUrl);
+    addToast('success', 'Đã lưu cấu hình', 'Mốc thời gian và Google Apps Script API đã được cập nhật.');
 
     // If enrollment data already exists, recalculate blocks
     if (enrollmentRows.length > 0) {
@@ -332,6 +482,14 @@ export default function App() {
           onSearchChange={setSearchTerm}
           onOpenConfig={() => setIsConfigModalOpen(true)}
           onExportExcel={handleExportExcel}
+          hasCloudApi={Boolean(appsScriptUrl && appsScriptUrl.trim())}
+          isSyncing={isSyncing}
+          isFetchingCloud={isFetchingCloud}
+          lastSyncedAt={lastSyncedAt}
+          onSyncToCloud={handleSyncToCloud}
+          onFetchFromCloud={handleFetchFromCloud}
+          userRole={userRole}
+          onToggleRole={handleToggleRole}
         />
 
         {/* Main Body */}
@@ -343,8 +501,9 @@ export default function App() {
             table1Total={table1Total}
           />
 
-          {/* Upload & File Processing Zone */}
+          {/* Upload & Cloud Processing Zone */}
           <UploadSection
+            userRole={userRole}
             subjectFileName={subjectFileName}
             customMappingCount={Object.keys(customMappings).length}
             onUploadSubjectFile={handleUploadSubjectFile}
@@ -358,6 +517,10 @@ export default function App() {
             block2Weekly={block2Weekly}
             onUploadWeeklyFile={handleUploadWeeklyFile}
             onClearWeeklyFile={handleClearWeeklyFile}
+            hasCloudApi={Boolean(appsScriptUrl && appsScriptUrl.trim())}
+            isSyncing={isSyncing}
+            onSyncToCloud={handleSyncToCloud}
+            onOpenConfig={() => setIsConfigModalOpen(true)}
           />
 
           {/* Table 1: Thống kê FA26, Block 1, Block 2 */}
@@ -388,7 +551,9 @@ export default function App() {
       <ConfigModal
         isOpen={isConfigModalOpen}
         config={config}
+        appsScriptUrl={appsScriptUrl}
         onSave={handleSaveConfig}
+        onTestConnection={handleTestConnection}
         onClose={() => setIsConfigModalOpen(false)}
       />
 

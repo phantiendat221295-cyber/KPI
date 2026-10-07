@@ -3,6 +3,7 @@
  */
 
 export type BlockType = 'B1' | 'B2';
+export type UserRole = 'admin' | 'viewer';
 
 export interface SemesterConfig {
   semesterName: string; // e.g. Fall 2026 (FA26)
@@ -133,4 +134,16 @@ export interface ToastMessage {
   type: 'success' | 'error' | 'warning' | 'info';
   title: string;
   message: string;
+}
+
+export interface CloudSyncPayload {
+  updatedAt: string;
+  updatedBy: string;
+  config: SemesterConfig;
+  customMappings: Record<string, DnaDepartmentCode>;
+  subjectFileName: string | null;
+  enrollmentFileName: string | null;
+  enrollmentRows: StudentEnrollmentRow[];
+  block1Weekly: BlockWeeklyData;
+  block2Weekly: BlockWeeklyData;
 }
