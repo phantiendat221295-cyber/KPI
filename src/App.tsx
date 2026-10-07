@@ -23,8 +23,10 @@ import {
   APPS_SCRIPT_STORAGE_KEY,
   USER_ROLE_STORAGE_KEY,
   LAST_SYNC_STORAGE_KEY,
+  LOCAL_STORAGE_DATA_KEY,
   fetchStateFromGoogleSheets,
   syncStateToGoogleSheets,
+  isValidCloudPayload,
 } from './utils/cloudSync';
 
 // Components
@@ -38,9 +40,27 @@ import { ConfigModal } from './components/ConfigModal';
 import { DepartmentModal } from './components/DepartmentModal';
 import { ToastContainer } from './components/Toast';
 
+// 1. Helper to synchronously read LocalStorage on initial load (0.01s instant render)
+function loadInitialLocalData(): CloudSyncPayload | null {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_DATA_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (isValidCloudPayload(parsed)) {
+      return parsed as CloudSyncPayload;
+    }
+  } catch (e) {
+    console.warn('Error reading FPT_DNA_DATA from localStorage:', e);
+  }
+  return null;
+}
+
 export default function App() {
+  // Read local cache immediately to ensure zero delay upon F5 / reload
+  const cachedData = useMemo(() => loadInitialLocalData(), []);
+
   // 1. Configuration & Cloud API URL
-  const [config, setConfig] = useState<SemesterConfig>(DEFAULT_SEMESTER_CONFIG);
+  const [config, setConfig] = useState<SemesterConfig>(() => cachedData?.config || DEFAULT_SEMESTER_CONFIG);
   const [appsScriptUrl, setAppsScriptUrl] = useState<string>(() => {
     return localStorage.getItem(APPS_SCRIPT_STORAGE_KEY) || '';
   });
@@ -54,23 +74,29 @@ export default function App() {
   });
 
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(() => {
-    return localStorage.getItem(LAST_SYNC_STORAGE_KEY) || null;
+    return cachedData?.updatedAt || localStorage.getItem(LAST_SYNC_STORAGE_KEY) || null;
   });
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [isFetchingCloud, setIsFetchingCloud] = useState<boolean>(false);
 
   // 3. Custom Subject Mappings (Dictionary)
-  const [customMappings, setCustomMappings] = useState<Record<string, DnaDepartmentCode>>({});
-  const [subjectFileName, setSubjectFileName] = useState<string | null>(null);
+  const [customMappings, setCustomMappings] = useState<Record<string, DnaDepartmentCode>>(
+    () => cachedData?.customMappings || {}
+  );
+  const [subjectFileName, setSubjectFileName] = useState<string | null>(() => cachedData?.subjectFileName ?? null);
 
-  // 4. Raw Parsed Files & Enrollment State (Starts Empty: ZERO MOCK DATA)
-  const [enrollmentFileName, setEnrollmentFileName] = useState<string | null>(null);
+  // 4. Raw Parsed Files & Enrollment State
+  const [enrollmentFileName, setEnrollmentFileName] = useState<string | null>(
+    () => cachedData?.enrollmentFileName ?? null
+  );
   const [rawEnrollmentFile, setRawEnrollmentFile] = useState<File | null>(null);
-  const [enrollmentRows, setEnrollmentRows] = useState<StudentEnrollmentRow[]>([]);
+  const [enrollmentRows, setEnrollmentRows] = useState<StudentEnrollmentRow[]>(
+    () => cachedData?.enrollmentRows || []
+  );
 
   // 5. Weekly Export Files State for Block 1 and Block 2
-  const [block1Weekly, setBlock1Weekly] = useState<BlockWeeklyData>({});
-  const [block2Weekly, setBlock2Weekly] = useState<BlockWeeklyData>({});
+  const [block1Weekly, setBlock1Weekly] = useState<BlockWeeklyData>(() => cachedData?.block1Weekly || {});
+  const [block2Weekly, setBlock2Weekly] = useState<BlockWeeklyData>(() => cachedData?.block2Weekly || {});
 
   // 6. UI Navigation & Search State
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
@@ -93,11 +119,49 @@ export default function App() {
   }, []);
 
   // ==========================================
-  // GOOGLE SHEETS CLOUD SYNC LOGIC
+  // 2-LAYER PROTECTION: AUTO-SAVE TO LOCALSTORAGE
   // ==========================================
+  useEffect(() => {
+    const hasData =
+      enrollmentRows.length > 0 ||
+      Object.values(block1Weekly).some(Boolean) ||
+      Object.values(block2Weekly).some(Boolean) ||
+      Object.keys(customMappings).length > 0;
 
-  // Apply Cloud Data Helper
+    if (hasData) {
+      const payload: CloudSyncPayload = {
+        updatedAt: lastSyncedAt || new Date().toLocaleString('vi-VN'),
+        updatedBy: 'Đạt Pic (Cán bộ Đào tạo DNA)',
+        config,
+        customMappings,
+        subjectFileName,
+        enrollmentFileName,
+        enrollmentRows,
+        block1Weekly,
+        block2Weekly,
+      };
+
+      try {
+        localStorage.setItem(LOCAL_STORAGE_DATA_KEY, JSON.stringify(payload));
+      } catch (err) {
+        console.warn('LocalStorage error while saving FPT_DNA_DATA:', err);
+      }
+    }
+  }, [
+    config,
+    customMappings,
+    subjectFileName,
+    enrollmentFileName,
+    enrollmentRows,
+    block1Weekly,
+    block2Weekly,
+    lastSyncedAt,
+  ]);
+
+  // Apply Cloud Data Helper (Only when valid data is received)
   const applyCloudPayload = useCallback((data: CloudSyncPayload) => {
+    if (!isValidCloudPayload(data)) return;
+
     if (data.config) setConfig(data.config);
     if (data.customMappings) setCustomMappings(data.customMappings);
     if (data.subjectFileName !== undefined) setSubjectFileName(data.subjectFileName);
@@ -109,36 +173,43 @@ export default function App() {
     const timestamp = data.updatedAt || new Date().toLocaleString('vi-VN');
     setLastSyncedAt(timestamp);
     localStorage.setItem(LAST_SYNC_STORAGE_KEY, timestamp);
+    localStorage.setItem(LOCAL_STORAGE_DATA_KEY, JSON.stringify(data));
   }, []);
 
-  // 1. AUTO-FETCH ON LOAD
+  // ==========================================
+  // BACKGROUND AUTO-FETCH FROM GOOGLE SHEETS
+  // ==========================================
   useEffect(() => {
     if (!appsScriptUrl || !appsScriptUrl.trim()) return;
 
     let isMounted = true;
-    const autoFetch = async () => {
+    const autoFetchBackground = async () => {
       setIsFetchingCloud(true);
       const res = await fetchStateFromGoogleSheets(appsScriptUrl);
       if (!isMounted) return;
       setIsFetchingCloud(false);
 
-      if (res.success && res.data) {
+      // ONLY overwrite if Google Sheets returns valid non-empty data!
+      if (res.success && res.data && isValidCloudPayload(res.data)) {
         applyCloudPayload(res.data);
         addToast(
           'success',
-          'Đồng bộ dữ liệu trực tuyến',
-          `Đã tải dữ liệu mới nhất từ Google Sheets (${res.data.enrollmentRows?.length || 0} lượt SV).`
+          'Đồng bộ từ Google Sheets',
+          `Đã cập nhật bản mới nhất từ Cloud (${res.data.enrollmentRows?.length || 0} lượt SV).`
         );
+      } else {
+        // If sheet is empty or invalid, DO NOT OVERWRITE current local data!
+        console.info('Google Sheets is empty or unchanged; preserving local data.');
       }
     };
 
-    autoFetch();
+    autoFetchBackground();
     return () => {
       isMounted = false;
     };
   }, [appsScriptUrl, applyCloudPayload, addToast]);
 
-  // 2. MANUAL REFRESH FROM CLOUD
+  // Manual Refresh from Cloud
   const handleFetchFromCloud = async () => {
     if (!appsScriptUrl) {
       setIsConfigModalOpen(true);
@@ -150,7 +221,7 @@ export default function App() {
     const res = await fetchStateFromGoogleSheets(appsScriptUrl);
     setIsFetchingCloud(false);
 
-    if (res.success && res.data) {
+    if (res.success && res.data && isValidCloudPayload(res.data)) {
       applyCloudPayload(res.data);
       addToast(
         'success',
@@ -158,11 +229,11 @@ export default function App() {
         `Đã cập nhật dữ liệu mới nhất từ Google Sheets lúc ${res.data.updatedAt || 'vừa xong'}.`
       );
     } else {
-      addToast('warning', 'Chưa thể lấy dữ liệu', res.message || 'Không tìm thấy dữ liệu trên trang tính.');
+      addToast('warning', 'Trang tính chưa có dữ liệu mới', 'Dữ liệu cục bộ trên máy của bạn được giữ nguyên.');
     }
   };
 
-  // 3. SYNC TO CLOUD (POST)
+  // Sync To Cloud (POST)
   const handleSyncToCloud = async () => {
     if (!appsScriptUrl) {
       setIsConfigModalOpen(true);
@@ -170,8 +241,9 @@ export default function App() {
       return;
     }
 
+    const nowStr = new Date().toLocaleString('vi-VN');
     const payload: CloudSyncPayload = {
-      updatedAt: new Date().toLocaleString('vi-VN'),
+      updatedAt: nowStr,
       updatedBy: 'Đạt Pic (Cán bộ Đào tạo DNA)',
       config,
       customMappings,
@@ -182,27 +254,33 @@ export default function App() {
       block2Weekly,
     };
 
+    // Save locally first
+    try {
+      localStorage.setItem(LOCAL_STORAGE_DATA_KEY, JSON.stringify(payload));
+    } catch (e) {
+      console.warn('Error saving to local storage:', e);
+    }
+
     setIsSyncing(true);
     const res = await syncStateToGoogleSheets(appsScriptUrl, payload);
     setIsSyncing(false);
 
     if (res.success) {
-      const nowStr = new Date().toLocaleString('vi-VN');
       setLastSyncedAt(nowStr);
       localStorage.setItem(LAST_SYNC_STORAGE_KEY, nowStr);
       addToast('success', 'Đồng bộ lên Cloud thành công', 'Đã lưu dữ liệu lên Google Sheets! Người khác có thể xem ngay.');
     } else {
-      addToast('error', 'Lỗi đồng bộ lên Google Sheets', res.message || 'Không thể gửi dữ liệu lên máy chủ.');
+      addToast('error', 'Lỗi gửi dữ liệu lên Google Sheets', res.message || 'Không thể gửi dữ liệu lên máy chủ.');
     }
   };
 
-  // 4. TEST CONNECTION
+  // Test Connection
   const handleTestConnection = async (testUrl: string): Promise<boolean> => {
     const res = await fetchStateFromGoogleSheets(testUrl);
     return res.success;
   };
 
-  // 5. TOGGLE ROLE
+  // Toggle Role
   const handleToggleRole = () => {
     const nextRole: UserRole = userRole === 'admin' ? 'viewer' : 'admin';
     setUserRole(nextRole);
@@ -494,7 +572,7 @@ export default function App() {
 
         {/* Main Body */}
         <main className="flex-1 p-5 space-y-4 max-w-7xl mx-auto w-full">
-          {/* Summary KPI Cards (Strict Zero Mock Data) */}
+          {/* Summary KPI Cards */}
           <SummaryCards
             hasEnrollmentData={hasEnrollmentData}
             hasExportData={hasExportData}

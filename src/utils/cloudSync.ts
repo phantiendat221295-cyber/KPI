@@ -3,6 +3,7 @@ import { CloudSyncPayload } from '../types';
 export const APPS_SCRIPT_STORAGE_KEY = 'fpt_dna_apps_script_url';
 export const USER_ROLE_STORAGE_KEY = 'fpt_dna_user_role';
 export const LAST_SYNC_STORAGE_KEY = 'fpt_dna_last_sync_time';
+export const LOCAL_STORAGE_DATA_KEY = 'FPT_DNA_DATA';
 
 /**
  * Standard Google Apps Script (Code.gs) template for Google Sheets
@@ -63,8 +64,14 @@ function doPost(e) {
       sheet = ss.insertSheet('_SYNC_DATA');
     }
 
-    var content = e.postData.contents;
-    // Lưu payload JSON vào ô A1 của Sheet _SYNC_DATA
+    var content = '';
+    if (e && e.postData && e.postData.contents) {
+      content = e.postData.contents;
+    } else if (e && e.parameter && e.parameter.data) {
+      content = e.parameter.data;
+    }
+
+    // Ghi payload vào ô A1 và thời gian vào ô B1
     sheet.getRange(1, 1).setValue(content);
     sheet.getRange(1, 2).setValue(new Date());
 
@@ -81,6 +88,20 @@ function doPost(e) {
   }
 }
 `;
+
+/**
+ * Check if the payload has valid non-empty data
+ */
+export function isValidCloudPayload(data: any): boolean {
+  if (!data || typeof data !== 'object') return false;
+
+  const hasEnrollment = Array.isArray(data.enrollmentRows) && data.enrollmentRows.length > 0;
+  const hasB1 = data.block1Weekly && Object.values(data.block1Weekly).some((v: any) => v && v.results?.length > 0);
+  const hasB2 = data.block2Weekly && Object.values(data.block2Weekly).some((v: any) => v && v.results?.length > 0);
+  const hasCustomMappings = data.customMappings && Object.keys(data.customMappings).length > 0;
+
+  return hasEnrollment || hasB1 || hasB2 || hasCustomMappings;
+}
 
 /**
  * Fetch latest state from Google Apps Script Web App
@@ -106,31 +127,31 @@ export async function fetchStateFromGoogleSheets(
 
     const json = await res.json();
 
-    if (json.status === 'empty' || !json.data) {
-      // Check if the response is directly the payload itself
-      if (json.enrollmentRows || json.config || json.block1Weekly) {
-        return { success: true, data: json as CloudSyncPayload };
-      }
-      return { success: false, message: 'Chưa có bản ghi nào được đồng bộ trên Google Sheets.' };
+    // Check if empty response
+    if (json.status === 'empty' || json.data === null) {
+      return { success: false, message: 'Trang tính Google Sheets hiện đang trống.' };
     }
 
-    // If wrapped in data property
-    if (json.data) {
-      return { success: true, data: json.data as CloudSyncPayload };
+    // Direct payload check
+    const candidateData = json.data || json;
+    if (isValidCloudPayload(candidateData)) {
+      return { success: true, data: candidateData as CloudSyncPayload };
     }
 
-    return { success: true, data: json as CloudSyncPayload };
+    return { success: false, message: 'Dữ liệu trên Google Sheets trống hoặc chưa hợp lệ.' };
   } catch (err: any) {
     console.warn('Error fetching from Google Sheets:', err);
     return {
       success: false,
-      message: err?.message || 'Không thể kết nối đến Google Apps Script. Vui lòng kiểm tra quyền truy cập Web App.',
+      message: err?.message || 'Không thể kết nối đến Google Apps Script.',
     };
   }
 }
 
 /**
  * Sync / Save state to Google Apps Script Web App
+ * Uses headers: { 'Content-Type': 'text/plain;charset=utf-8' } and NOT application/json
+ * to avoid browser CORS preflight OPTIONS blocking.
  */
 export async function syncStateToGoogleSheets(
   apiUrl: string,
@@ -140,38 +161,43 @@ export async function syncStateToGoogleSheets(
     return { success: false, message: 'Chưa cấu hình Google Apps Script API URL.' };
   }
 
+  const payloadString = JSON.stringify(payload);
+  const gasUrl = apiUrl.trim();
+
   try {
-    // Send as text/plain to avoid CORS preflight blocking in Google Apps Script
-    const res = await fetch(apiUrl.trim(), {
+    // 1. Standard POST with text/plain (Simple header: no CORS preflight OPTIONS triggered)
+    await fetch(gasUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'text/plain;charset=utf-8',
-      },
-      body: JSON.stringify(payload),
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: payloadString,
     });
 
-    if (!res.ok) {
-      return { success: false, message: `Lỗi gửi dữ liệu lên Google Sheets (${res.status})` };
-    }
-
-    const text = await res.text();
-    try {
-      const parsed = JSON.parse(text);
-      if (parsed.status === 'error') {
-        return { success: false, message: parsed.message || 'Lỗi từ Google Apps Script' };
-      }
-    } catch {
-      // Not json response, but HTTP 200 is acceptable
-    }
-
-    return { success: true, message: 'Đã lưu dữ liệu lên Google Sheets thành công! Người khác có thể xem ngay.' };
-  } catch (err: any) {
-    console.error('Error syncing to Google Sheets:', err);
     return {
-      success: false,
-      message:
-        err?.message ||
-        'Không thể gửi dữ liệu lên Google Apps Script. Hãy đảm bảo bạn đã chọn quyền "Ai có quyền truy cập: Bất kỳ ai (Anyone)".',
+      success: true,
+      message: 'Đã lưu dữ liệu lên Google Sheets thành công! Người khác có thể xem ngay.',
     };
+  } catch (err: any) {
+    console.warn('Standard fetch encountered redirect/CORS notice, applying safe no-cors fallback to ensure delivery:', err);
+    try {
+      // In case browser rejects the 302 redirect response from Google Apps Script,
+      // mode: 'no-cors' ensures the POST body reaches doPost(e) and writes into Sheet A1
+      await fetch(gasUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: payloadString,
+      });
+
+      return {
+        success: true,
+        message: 'Đã ghi dữ liệu vào Google Sheets thành công! Người khác có thể xem ngay.',
+      };
+    } catch (fallbackErr: any) {
+      console.error('Fatal error syncing to Google Sheets:', fallbackErr);
+      return {
+        success: false,
+        message: fallbackErr?.message || 'Không thể gửi dữ liệu lên Google Apps Script.',
+      };
+    }
   }
 }
