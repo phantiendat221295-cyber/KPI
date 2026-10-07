@@ -57,7 +57,7 @@ export const DepartmentModal: React.FC<DepartmentModalProps> = ({
                 Danh mục Bộ môn & Từ điển Ánh xạ Mã môn (DNA)
               </h3>
               <p className="text-[11px] text-slate-500">
-                Quy tắc nhận diện Bộ môn chuẩn hóa theo cơ sở FPT Polytechnic Đà Nẵng
+                Quy tắc nhận diện Bộ môn chuẩn hóa theo cơ sở FPT Polytechnic Đồng Nai
               </p>
             </div>
           </div>
