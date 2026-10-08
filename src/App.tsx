@@ -24,6 +24,8 @@ import {
   USER_ROLE_STORAGE_KEY,
   LAST_SYNC_STORAGE_KEY,
   LOCAL_STORAGE_DATA_KEY,
+  getEffectiveCloudUrl,
+  testCloudConnection,
   fetchStateFromGoogleSheets,
   syncStateToGoogleSheets,
   isValidCloudPayload,
@@ -39,7 +41,6 @@ import { TableSummary } from './components/TableSummary';
 import { TableWeeklyOKR } from './components/TableWeeklyOKR';
 import { ConfigModal } from './components/ConfigModal';
 import { DepartmentModal } from './components/DepartmentModal';
-import { ShareModal } from './components/ShareModal';
 import { ToastContainer } from './components/Toast';
 
 // 1. Helper to synchronously read LocalStorage on initial load (0.01s instant render)
@@ -61,17 +62,9 @@ export default function App() {
   // Read local cache immediately to ensure zero delay upon F5 / reload
   const cachedData = useMemo(() => loadInitialLocalData(), []);
 
-  // 1. Configuration & Cloud API URL (Auto-reads from URL query params ?api=... if someone opens a shared link)
+  // 1. Configuration & Cloud API URL (Auto-resolved for all devices without URL params)
   const [config, setConfig] = useState<SemesterConfig>(() => cachedData?.config || DEFAULT_SEMESTER_CONFIG);
-  const [appsScriptUrl, setAppsScriptUrl] = useState<string>(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const apiFromUrl = urlParams.get('api') || urlParams.get('gas');
-    if (apiFromUrl) {
-      localStorage.setItem(APPS_SCRIPT_STORAGE_KEY, apiFromUrl);
-      return apiFromUrl;
-    }
-    return localStorage.getItem(APPS_SCRIPT_STORAGE_KEY) || '';
-  });
+  const [appsScriptUrl, setAppsScriptUrl] = useState<string>(() => getEffectiveCloudUrl());
 
   // 2. User Role & Cloud Sync Metadata
   const [userRole, setUserRole] = useState<UserRole>(() => {
@@ -111,7 +104,6 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [isConfigModalOpen, setIsConfigModalOpen] = useState<boolean>(false);
   const [isDeptModalOpen, setIsDeptModalOpen] = useState<boolean>(false);
-  const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   // Toast Helpers
@@ -126,17 +118,6 @@ export default function App() {
   const dismissToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
-
-  // Keep address bar in sync with API param so copying direct URL works for everyone
-  useEffect(() => {
-    if (appsScriptUrl && appsScriptUrl.trim()) {
-      const url = new URL(window.location.href);
-      if (url.searchParams.get('api') !== appsScriptUrl) {
-        url.searchParams.set('api', appsScriptUrl);
-        window.history.replaceState({}, '', url.toString());
-      }
-    }
-  }, [appsScriptUrl]);
 
   // ==========================================
   // 2-LAYER PROTECTION: AUTO-SAVE TO LOCALSTORAGE
@@ -295,7 +276,7 @@ export default function App() {
       addToast(
         'success',
         'Đồng bộ lên Cloud thành công',
-        'Đã lưu dữ liệu lên Google Sheets! Bạn có thể bấm nút "Chia sẻ link" để người khác xem ngay.'
+        'Đã lưu dữ liệu lên Google Sheets! Bất kỳ ai mở link https://kpi-daotao-dna.vercel.app/ cũng sẽ xem được ngay.'
       );
     } else {
       addToast('error', 'Lỗi gửi dữ liệu lên Google Sheets', res.message || 'Không thể gửi dữ liệu lên máy chủ.');
@@ -303,9 +284,8 @@ export default function App() {
   };
 
   // Test Connection
-  const handleTestConnection = async (testUrl: string): Promise<boolean> => {
-    const res = await fetchStateFromGoogleSheets(testUrl);
-    return res.success;
+  const handleTestConnection = async (testUrl: string): Promise<{ success: boolean; message: string }> => {
+    return await testCloudConnection(testUrl);
   };
 
   // Toggle Role
@@ -480,11 +460,31 @@ export default function App() {
   };
 
   // Handler 4: Config Update
-  const handleSaveConfig = (newConfig: SemesterConfig, newUrl: string) => {
+  const handleSaveConfig = async (newConfig: SemesterConfig, newUrl: string) => {
     setConfig(newConfig);
-    setAppsScriptUrl(newUrl);
-    localStorage.setItem(APPS_SCRIPT_STORAGE_KEY, newUrl);
-    addToast('success', 'Đã lưu cấu hình', 'Mốc thời gian và Google Apps Script API đã được cập nhật.');
+    const trimmed = newUrl.trim();
+    setAppsScriptUrl(trimmed);
+    if (trimmed) {
+      localStorage.setItem(APPS_SCRIPT_STORAGE_KEY, trimmed);
+    } else {
+      localStorage.removeItem(APPS_SCRIPT_STORAGE_KEY);
+    }
+    addToast('success', 'Đã lưu cấu hình', 'Mốc thời gian và kết nối Cloud Google Sheets đã được cập nhật.');
+
+    // If local enrollment is empty and URL is valid, fetch immediately from cloud
+    if (trimmed && enrollmentRows.length === 0) {
+      setIsFetchingCloud(true);
+      const res = await fetchStateFromGoogleSheets(trimmed);
+      setIsFetchingCloud(false);
+      if (res.success && res.data && isValidCloudPayload(res.data)) {
+        applyCloudPayload(res.data);
+        addToast(
+          'success',
+          'Đã tải dữ liệu từ Cloud',
+          `Đã đồng bộ ${res.data.enrollmentRows?.length || 0} lượt sinh viên từ Google Sheets.`
+        );
+      }
+    }
 
     // If enrollment data already exists, recalculate blocks
     if (enrollmentRows.length > 0) {
@@ -575,7 +575,6 @@ export default function App() {
         onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         onOpenConfig={() => setIsConfigModalOpen(true)}
         onOpenDepartment={() => setIsDeptModalOpen(true)}
-        onOpenShare={() => setIsShareModalOpen(true)}
         onExportExcel={handleExportExcel}
         hasData={hasEnrollmentData || hasExportData}
       />
@@ -588,7 +587,6 @@ export default function App() {
           searchTerm={searchTerm}
           onSearchChange={setSearchTerm}
           onOpenConfig={() => setIsConfigModalOpen(true)}
-          onOpenShare={() => setIsShareModalOpen(true)}
           onExportExcel={handleExportExcel}
           hasCloudApi={Boolean(appsScriptUrl && appsScriptUrl.trim())}
           isSyncing={isSyncing}
@@ -671,12 +669,6 @@ export default function App() {
         onAddOrUpdateMapping={handleAddOrUpdateMapping}
         onRemoveMapping={handleRemoveMapping}
         onClose={() => setIsDeptModalOpen(false)}
-      />
-
-      <ShareModal
-        isOpen={isShareModalOpen}
-        appsScriptUrl={appsScriptUrl}
-        onClose={() => setIsShareModalOpen(false)}
       />
 
       {/* Toast Notifications */}

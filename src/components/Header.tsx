@@ -12,7 +12,6 @@ import {
   Eye,
   ShieldCheck,
   CheckCircle2,
-  Share2,
 } from 'lucide-react';
 import { SemesterConfig, UserRole } from '../types';
 
@@ -21,7 +20,6 @@ interface HeaderProps {
   searchTerm: string;
   onSearchChange: (val: string) => void;
   onOpenConfig: () => void;
-  onOpenShare: () => void;
   onExportExcel: () => void;
   // Cloud Sync Props
   hasCloudApi: boolean;
@@ -40,7 +38,6 @@ export const Header: React.FC<HeaderProps> = ({
   searchTerm,
   onSearchChange,
   onOpenConfig,
-  onOpenShare,
   onExportExcel,
   hasCloudApi,
   isSyncing,
@@ -72,6 +69,12 @@ export const Header: React.FC<HeaderProps> = ({
           >
             {config.semesterName}
           </button>
+          <span
+            className="hidden lg:inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-600 border border-slate-200 font-mono font-medium"
+            title="Link truy cập chung duy nhất của toàn cơ sở: https://kpi-daotao-dna.vercel.app/"
+          >
+            kpi-daotao-dna.vercel.app
+          </span>
 
           {/* Sync Timestamp Badge */}
           {lastSyncedAt && (
@@ -141,16 +144,6 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="hidden sm:inline">Nối Google Sheets</span>
           </button>
         )}
-
-        {/* Share Link Button */}
-        <button
-          onClick={onOpenShare}
-          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-medium transition-colors shadow-2xs"
-          title="Sao chép liên kết chia sẻ cho người khác xem ngay lập tức"
-        >
-          <Share2 className="w-3.5 h-3.5 text-emerald-600" />
-          <span className="hidden lg:inline">Chia sẻ link</span>
-        </button>
 
         {/* Quick Download Excel Button */}
         <button

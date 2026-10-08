@@ -1,5 +1,10 @@
 import { DepartmentInfo, DnaDepartmentCode, SemesterConfig } from './types';
 
+// CẤU HÌNH CLOUD API CHUNG CHO TOÀN BỘ CƠ SỞ DNA:
+// Dán Google Apps Script Web App URL (/exec) vào đây hoặc đặt biến môi trường VITE_APPS_SCRIPT_URL trên Vercel.
+// Bất kỳ ai mở https://kpi-daotao-dna.vercel.app/ sẽ tự động lấy dữ liệu từ Google Sheets!
+export const DEFAULT_APPS_SCRIPT_URL: string = '';
+
 export const DEFAULT_SEMESTER_CONFIG: SemesterConfig = {
   semesterName: 'Fall 2026 (FA26)',
   startDate: '2026-09-14',

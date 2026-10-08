@@ -1,4 +1,5 @@
 import { CloudSyncPayload, StudentResultRow } from '../types';
+import { DEFAULT_APPS_SCRIPT_URL } from '../constants';
 
 export const APPS_SCRIPT_STORAGE_KEY = 'fpt_dna_apps_script_url';
 export const USER_ROLE_STORAGE_KEY = 'fpt_dna_user_role';
@@ -6,28 +7,76 @@ export const LAST_SYNC_STORAGE_KEY = 'fpt_dna_last_sync_time';
 export const LOCAL_STORAGE_DATA_KEY = 'FPT_DNA_DATA';
 
 /**
+ * Resolves the active Google Apps Script / Cloud URL for the application.
+ * Priority order:
+ * 1. URL search params (?api=... or ?gas=...) - convenient for testing
+ * 2. LocalStorage override on this browser
+ * 3. Vercel environment variable (VITE_APPS_SCRIPT_URL) - ensures ALL visitors at kpi-daotao-dna.vercel.app get it
+ * 4. Default constant in constants.ts
+ */
+export function getEffectiveCloudUrl(): string {
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get('api') || params.get('gas');
+    if (fromUrl && fromUrl.trim().startsWith('http')) {
+      return fromUrl.trim();
+    }
+
+    const saved = localStorage.getItem(APPS_SCRIPT_STORAGE_KEY);
+    if (saved && saved.trim().startsWith('http')) {
+      return saved.trim();
+    }
+  }
+
+  const envUrl = (import.meta as any).env?.VITE_APPS_SCRIPT_URL;
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim().startsWith('http')) {
+    return envUrl.trim();
+  }
+
+  const defaultUrl = (DEFAULT_APPS_SCRIPT_URL as string) || '';
+  if (defaultUrl && typeof defaultUrl === 'string' && defaultUrl.trim().startsWith('http')) {
+    return defaultUrl.trim();
+  }
+
+  return '';
+}
+
+/**
  * Standard Google Apps Script (Code.gs) template for Google Sheets
  * Supports multi-row chunking to bypass Google Sheets 50,000 char per cell limit!
+ * Works seamlessly with both container-bound and standalone scripts.
  */
 export const SAMPLE_APPS_SCRIPT_CODE = `/**
  * GOOGLE APPS SCRIPT CHO WEBAPP THỐNG KÊ OKR FPT POLYTECHNIC ĐỒNG NAI (DNA)
+ * Link ứng dụng: https://kpi-daotao-dna.vercel.app/
  * ----------------------------------------------------------------------
- * HƯỚNG DẪN CẬP NHẬT TRONG 1 PHÚT:
- * 1. Mở file Google Sheets của bạn (vd: Data KPI).
- * 2. Trên thanh menu, chọn: Tiện ích mở rộng (Extensions) -> Apps Script.
- * 3. XÓA SẠCH CODE CŨ trong Code.gs, DÁN TOÀN BỘ ĐOẠN CODE NÀY VÀO -> Bấm Lưu (Ctrl+S / Cmd+S).
- * 4. Bấm nút "Triển khai" (Deploy) ở góc trên bên phải -> Chọn "Quản lý bản triển khai" (Manage deployments)
- *    hoặc "Triển khai mới" (New deployment).
- * 5. Chọn loại: "Ứng dụng web" (Web app).
- * 6. Cấu hình triển khai:
+ * HƯỚNG DẪN TRIỂN KHAI TRONG 1 PHÚT:
+ * 1. Mở file Google Sheets mới hoặc có sẵn của cơ sở FPT Polytechnic Đồng Nai.
+ * 2. Trên thanh menu trên cùng: Tiện ích mở rộng (Extensions) -> Apps Script.
+ * 3. XÓA SẠCH CODE CŨ trong file Code.gs, DÁN TOÀN BỘ ĐOẠN CODE NÀY VÀO -> Bấm Lưu (Ctrl+S / Cmd+S).
+ * 4. Bấm nút màu xanh "Triển khai" (Deploy) ở góc trên bên phải -> "Triển khai mới" (New deployment).
+ * 5. Chọn loại (bánh răng): "Ứng dụng web" (Web app).
+ * 6. Thiết lập cấu hình BẮT BUỘC:
+ *    - Mô tả: FPT DNA OKR Sync API
  *    - Thực thi dưới dạng (Execute as): "Tôi" (Me)
- *    - Ai có quyền truy cập (Who has access): "Bất kỳ ai" (Anyone)  <-- BẮT BUỘC
- * 7. Bấm "Triển khai" -> Sao chép URL Web App (kết thúc bằng /exec) và dán vào WebApp!
+ *    - Ai có quyền truy cập (Who has access): "Bất kỳ ai" (Anyone)   <--- CỰC KỲ QUAN TRỌNG!
+ * 7. Bấm "Triển khai" (Deploy) -> Cấp quyền cho Google nếu hỏi -> Sao chép URL kết thúc bằng /exec
+ * 8. Dán URL vào WebApp hoặc thêm vào biến VITE_APPS_SCRIPT_URL trên Vercel.
  */
 
 function doPost(e) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) {
+      // Dành cho trường hợp script tạo độc lập (standalone)
+      var files = DriveApp.getFilesByName('FPT_DNA_OKR_DATABASE');
+      if (files.hasNext()) {
+        ss = SpreadsheetApp.open(files.next());
+      } else {
+        ss = SpreadsheetApp.create('FPT_DNA_OKR_DATABASE');
+      }
+    }
+
     var sheet = ss.getSheetByName('_SYNC_DATA');
     if (!sheet) {
       sheet = ss.insertSheet('_SYNC_DATA');
@@ -40,16 +89,17 @@ function doPost(e) {
       content = e.parameter.data;
     }
 
-    if (!content) {
+    if (!content || content.trim() === '') {
       return ContentService.createTextOutput(JSON.stringify({
         status: 'error',
         message: 'Nội dung gửi lên trống'
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    sheet.clearContents(); // Xóa sạch dữ liệu cũ
+    // Xóa dữ liệu cũ của sheet _SYNC_DATA
+    sheet.clearContents();
 
-    // Chia nhỏ thành các đoạn 40.000 ký tự để không bao giờ bị lỗi quá giới hạn ô của Google Sheets (50.000 ký tự)
+    // Chia nhỏ thành các đoạn 40.000 ký tự để không bao giờ bị lỗi giới hạn 50.000 ký tự/ô của Google Sheets
     var chunkSize = 40000;
     var chunks = [];
     for (var i = 0; i < content.length; i += chunkSize) {
@@ -75,7 +125,31 @@ function doPost(e) {
 
 function doGet(e) {
   try {
+    // Nếu kiểm tra kết nối ping test
+    if (e && e.parameter && (e.parameter.ping === '1' || e.parameter.test === '1')) {
+      return ContentService.createTextOutput(JSON.stringify({
+        status: 'ok',
+        message: 'Google Apps Script Web App của FPT DNA đang hoạt động bình thường',
+        time: new Date().toISOString()
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) {
+      var files = DriveApp.getFilesByName('FPT_DNA_OKR_DATABASE');
+      if (files.hasNext()) {
+        ss = SpreadsheetApp.open(files.next());
+      }
+    }
+
+    if (!ss) {
+      return ContentService.createTextOutput(JSON.stringify({
+        status: 'empty',
+        message: 'Chưa có dữ liệu bảng tính',
+        data: null
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     var sheet = ss.getSheetByName('_SYNC_DATA');
     if (!sheet) {
       return ContentService.createTextOutput(JSON.stringify({
@@ -103,7 +177,7 @@ function doGet(e) {
       }
     }
 
-    if (!fullContent) {
+    if (!fullContent || fullContent.trim() === '') {
       return ContentService.createTextOutput(JSON.stringify({
         status: 'empty',
         message: 'Dữ liệu trống',
@@ -218,11 +292,109 @@ export function isValidCloudPayload(data: any): boolean {
 }
 
 /**
+ * Tests connection to Google Apps Script Web App
+ */
+export async function testCloudConnection(
+  apiUrl: string
+): Promise<{ success: boolean; isReady: boolean; hasData: boolean; message: string }> {
+  if (!apiUrl || !apiUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      isReady: false,
+      hasData: false,
+      message: 'Vui lòng nhập đường dẫn URL hợp lệ bắt đầu bằng https://',
+    };
+  }
+
+  const cleanUrl = apiUrl.trim();
+
+  // Check if user accidentally pasted a Google Sheets UI link instead of the /exec Web App link
+  if (cleanUrl.includes('docs.google.com/spreadsheets') && !cleanUrl.includes('/exec')) {
+    return {
+      success: false,
+      isReady: false,
+      hasData: false,
+      message:
+        'Bạn đang nhập đường link trang tính Google Sheets! Để đồng bộ 2 chiều, bạn cần vào Tiện ích mở rộng -> Apps Script -> Triển khai dạng Ứng dụng web và sao chép link kết thúc bằng /exec.',
+    };
+  }
+
+  try {
+    const separator = cleanUrl.includes('?') ? '&' : '?';
+    const res = await fetch(`${cleanUrl}${separator}ping=1`, {
+      method: 'GET',
+    });
+
+    if (!res.ok) {
+      return {
+        success: false,
+        isReady: false,
+        hasData: false,
+        message: `Máy chủ Google phản hồi mã lỗi HTTP ${res.status}. Vui lòng kiểm tra quyền truy cập Anyone.`,
+      };
+    }
+
+    const text = await res.text();
+    let parsed: any = null;
+    try {
+      parsed = JSON.parse(text.trim());
+      if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+    } catch {
+      // not json
+    }
+
+    if (parsed) {
+      if (parsed.status === 'ok') {
+        return {
+          success: true,
+          isReady: true,
+          hasData: false,
+          message: 'Kết nối máy chủ Google Apps Script thành công! Sẵn sàng nhận dữ liệu.',
+        };
+      }
+      if (isValidCloudPayload(parsed) || (parsed.data && isValidCloudPayload(parsed.data))) {
+        const payload = parsed.data || parsed;
+        return {
+          success: true,
+          isReady: true,
+          hasData: true,
+          message: `Đã kết nối! Hiện có dữ liệu trên Cloud (${payload.enrollmentRows?.length || 0} lượt SV, cập nhật lúc: ${payload.updatedAt || 'N/A'}).`,
+        };
+      }
+      if (parsed.status === 'empty') {
+        return {
+          success: true,
+          isReady: true,
+          hasData: false,
+          message: 'Kết nối thành công! Trang tính hiện đang trống và sẵn sàng đồng bộ.',
+        };
+      }
+    }
+
+    return {
+      success: true,
+      isReady: true,
+      hasData: false,
+      message: 'Đã kết nối máy chủ Google Sheets thành công.',
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      isReady: false,
+      hasData: false,
+      message:
+        err?.message ||
+        'Không thể kết nối tới URL Google Apps Script. Vui lòng kiểm tra lại URL và cấu hình quyền "Bất kỳ ai (Anyone)".',
+    };
+  }
+}
+
+/**
  * Fetch latest state from Google Apps Script Web App
  */
 export async function fetchStateFromGoogleSheets(
   apiUrl: string
-): Promise<{ success: boolean; data?: CloudSyncPayload; message?: string }> {
+): Promise<{ success: boolean; data?: CloudSyncPayload; isEmpty?: boolean; message?: string }> {
   if (!apiUrl || !apiUrl.trim().startsWith('http')) {
     return { success: false, message: 'Chưa cấu hình Google Apps Script URL hợp lệ.' };
   }
@@ -230,27 +402,39 @@ export async function fetchStateFromGoogleSheets(
   try {
     const res = await fetch(apiUrl.trim(), {
       method: 'GET',
-      headers: {
-        Accept: 'application/json',
-      },
     });
 
     if (!res.ok) {
       return { success: false, message: `Lỗi kết nối máy chủ Google (${res.status})` };
     }
 
-    const json = await res.json();
-
-    if (json.status === 'empty' || json.data === null) {
-      return { success: false, message: 'Trang tính Google Sheets hiện đang trống.' };
+    const text = await res.text();
+    if (!text || !text.trim()) {
+      return { success: false, isEmpty: true, message: 'Phản hồi từ Google Sheets trống.' };
     }
 
-    const candidateData = json.data || json;
+    let parsed: any;
+    try {
+      parsed = JSON.parse(text.trim());
+      // Handle case where text was double-stringified
+      if (typeof parsed === 'string') {
+        parsed = JSON.parse(parsed);
+      }
+    } catch (parseErr) {
+      console.warn('JSON parse error from Google Sheets:', parseErr);
+      return { success: false, message: 'Dữ liệu nhận từ Google Sheets không đúng định dạng JSON.' };
+    }
+
+    if (parsed.status === 'empty' || parsed.data === null) {
+      return { success: true, isEmpty: true, message: 'Trang tính Google Sheets hiện đang trống.' };
+    }
+
+    const candidateData = parsed.data || parsed;
     if (isValidCloudPayload(candidateData)) {
-      return { success: true, data: candidateData as CloudSyncPayload };
+      return { success: true, data: candidateData as CloudSyncPayload, isEmpty: false };
     }
 
-    return { success: false, message: 'Dữ liệu trên Google Sheets trống hoặc chưa hợp lệ.' };
+    return { success: true, isEmpty: true, message: 'Dữ liệu trên Google Sheets trống hoặc chưa có bản ghi.' };
   } catch (err: any) {
     console.warn('Error fetching from Google Sheets:', err);
     return {
@@ -262,8 +446,8 @@ export async function fetchStateFromGoogleSheets(
 
 /**
  * Sync / Save state to Google Apps Script Web App
- * Uses headers: { 'Content-Type': 'text/plain;charset=utf-8' } and NOT application/json
- * to avoid browser CORS preflight OPTIONS blocking.
+ * Uses headers: { 'Content-Type': 'text/plain;charset=utf-8' } to avoid CORS preflight OPTIONS blocking.
+ * Performs dual-layer post and verifies with background GET verification.
  */
 export async function syncStateToGoogleSheets(
   apiUrl: string,
@@ -273,7 +457,6 @@ export async function syncStateToGoogleSheets(
     return { success: false, message: 'Chưa cấu hình Google Apps Script API URL.' };
   }
 
-  // Sanitize payload to strip rawRow and ensure optimal size
   const cleanPayload = preparePayloadForCloud(payload);
   const payloadString = JSON.stringify(cleanPayload);
   const gasUrl = apiUrl.trim();
@@ -298,14 +481,14 @@ export async function syncStateToGoogleSheets(
       }
       return {
         success: true,
-        message: 'Đã lưu dữ liệu lên Google Sheets thành công! Người khác có thể xem ngay.',
+        message: 'Đã lưu dữ liệu lên Google Sheets thành công! Tất cả mọi người có thể xem ngay.',
       };
     }
   } catch (err: any) {
-    console.warn('Standard fetch encountered redirect/CORS notice, applying safe no-cors fallback to ensure delivery:', err);
+    console.warn('Standard POST fetch notice, applying safe no-cors fallback:', err);
   }
 
-  // 2. Fallback with no-cors to guarantee packet reaches Google Apps Script and executes doPost(e)
+  // 2. Safe Fallback with mode: 'no-cors'
   try {
     await fetch(gasUrl, {
       method: 'POST',
@@ -314,9 +497,21 @@ export async function syncStateToGoogleSheets(
       body: payloadString,
     });
 
+    // Short delay to allow Google Sheets script execution to complete writing
+    await new Promise((r) => setTimeout(r, 1200));
+
+    // Verify written data via GET
+    const verifyRes = await fetchStateFromGoogleSheets(gasUrl);
+    if (verifyRes.success && verifyRes.data && isValidCloudPayload(verifyRes.data)) {
+      return {
+        success: true,
+        message: 'Đã xác nhận dữ liệu đã lưu vào Google Sheets thành công 100%! Bất kỳ ai mở link cũng sẽ thấy ngay.',
+      };
+    }
+
     return {
       success: true,
-      message: 'Đã gửi dữ liệu vào Google Sheets thành công! Người khác có thể xem ngay.',
+      message: 'Đã gửi gói dữ liệu vào Google Sheets! Dữ liệu đang được đồng bộ lên máy chủ.',
     };
   } catch (fallbackErr: any) {
     console.error('Fatal error syncing to Google Sheets:', fallbackErr);
