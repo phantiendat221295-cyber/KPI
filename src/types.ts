@@ -61,7 +61,8 @@ export interface StudentResultRow {
   isAttendanceFailed: boolean;
   isOngoingAssessmentFail: boolean;
   isForbiddenExam: boolean; // Attendance Failed OR On-going Assessment Fail
-  isPassed: boolean;       // Not Failed / Passing
+  isPassed: boolean;       // Đạt (Passed / Đạt / Miễn thi)
+  isPending?: boolean;     // Chưa có kết quả (Studying / Not started...) - loại khỏi mẫu số Pass
   department: DnaDepartmentCode;
   block?: BlockType;
   startDate?: string;

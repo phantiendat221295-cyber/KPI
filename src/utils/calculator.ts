@@ -1,4 +1,5 @@
 import { DNA_DEPARTMENTS } from '../constants';
+import { evaluateStatus } from './parser';
 import {
   BlockWeeklyData,
   DnaDepartmentCode,
@@ -26,17 +27,37 @@ export function getLatestWeekUploaded(weeklyData: BlockWeeklyData): number | nul
 }
 
 /**
+ * Luôn tính lại trạng thái từ chuỗi status gốc (kể cả dữ liệu cũ đã lưu trên cloud)
+ * để đồng bộ quy tắc với Hệ thống Phổ điểm.
+ */
+function st(r: StudentResultRow) {
+  return evaluateStatus(r.status);
+}
+
+/** Cấm thi = (Trượt điểm danh + Trượt quá trình) / tổng lượt SV */
+function forbiddenOf(rows: StudentResultRow[]): { count: number | null; rate: number | null } {
+  if (rows.length === 0) return { count: null, rate: null };
+  const count = rows.filter((r) => st(r).isForbiddenExam).length;
+  return { count, rate: (count / rows.length) * 100 };
+}
+
+/** Pass = Đạt / (tổng lượt SV - SV chưa có kết quả) */
+function passOf(rows: StudentResultRow[]): { count: number | null; rate: number | null } {
+  if (rows.length === 0) return { count: null, rate: null };
+  const evaluated = rows.filter((r) => !st(r).isPending);
+  if (evaluated.length === 0) return { count: 0, rate: null };
+  const count = evaluated.filter((r) => st(r).isPassed).length;
+  return { count, rate: (count / evaluated.length) * 100 };
+}
+
+/**
  * Calculate Forbidden Count & Rate for a specific department
  */
 export function calculateForbiddenStats(
   results: StudentResultRow[],
   deptCode: DnaDepartmentCode
 ): { count: number | null; rate: number | null } {
-  const deptResults = results.filter((r) => r.department === deptCode);
-  if (deptResults.length === 0) return { count: null, rate: null };
-  const forbiddenCount = deptResults.filter((r) => r.isForbiddenExam).length;
-  const rate = (forbiddenCount / deptResults.length) * 100;
-  return { count: forbiddenCount, rate };
+  return forbiddenOf(results.filter((r) => r.department === deptCode));
 }
 
 /**
@@ -46,11 +67,7 @@ export function calculatePassStats(
   results: StudentResultRow[],
   deptCode: DnaDepartmentCode
 ): { count: number | null; rate: number | null } {
-  const deptResults = results.filter((r) => r.department === deptCode);
-  if (deptResults.length === 0) return { count: null, rate: null };
-  const passedCount = deptResults.filter((r) => r.isPassed).length;
-  const rate = (passedCount / deptResults.length) * 100;
-  return { count: passedCount, rate };
+  return passOf(results.filter((r) => r.department === deptCode));
 }
 
 /**
@@ -59,10 +76,7 @@ export function calculatePassStats(
 export function calculateTotalForbiddenStats(
   results: StudentResultRow[]
 ): { count: number | null; rate: number | null } {
-  if (results.length === 0) return { count: null, rate: null };
-  const forbiddenCount = results.filter((r) => r.isForbiddenExam).length;
-  const rate = (forbiddenCount / results.length) * 100;
-  return { count: forbiddenCount, rate };
+  return forbiddenOf(results);
 }
 
 /**
@@ -71,10 +85,7 @@ export function calculateTotalForbiddenStats(
 export function calculateTotalPassStats(
   results: StudentResultRow[]
 ): { count: number | null; rate: number | null } {
-  if (results.length === 0) return { count: null, rate: null };
-  const passedCount = results.filter((r) => r.isPassed).length;
-  const rate = (passedCount / results.length) * 100;
-  return { count: passedCount, rate };
+  return passOf(results);
 }
 
 /**

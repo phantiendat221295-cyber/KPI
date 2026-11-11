@@ -207,50 +207,79 @@ export async function parseEnrollmentFile(
 }
 
 /**
- * Evaluate status for attendance failed, ongoing assessment fail, or passed
+ * Bỏ dấu tiếng Việt + chữ thường để so khớp trạng thái ổn định
+ */
+function normalizeStatus(s: string): string {
+  return (s || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Evaluate status — QUY TẮC ĐỒNG BỘ VỚI HỆ THỐNG PHỔ ĐIỂM & ĐÁNH GIÁ
+ *  - Cấm thi điểm danh : "Attendance failed", "Trượt điểm danh"
+ *  - Cấm thi quá trình : "On-going Assessment Fail", "Trượt điểm quá trình", "Trượt đầu điểm", "Cấm thi"
+ *  - Đạt               : "Passed", "Đạt", "Miễn thi", "Đủ điểm quá trình"
+ *  - Trượt             : "Not passed", "Failed", "Trượt", "Không đạt"
+ *  - Chưa có kết quả   : "Studying", "Not started", "Chưa bắt đầu", "Đã tham gia", "Đang học", trống
+ * Tỷ lệ cấm thi = (ĐD + QT) / tổng lượt SV
+ * Tỷ lệ Pass    = Đạt / (tổng lượt SV - chưa có kết quả)
  */
 export function evaluateStatus(statusStr: string): {
   isAttendanceFailed: boolean;
   isOngoingAssessmentFail: boolean;
   isForbiddenExam: boolean;
   isPassed: boolean;
+  isPending: boolean;
 } {
-  const norm = (statusStr || '').trim().toLowerCase();
+  const norm = normalizeStatus(statusStr);
 
   const isAttendanceFailed =
-    norm.includes('attendance failed') ||
     norm.includes('attendance fail') ||
-    norm.includes('chuyên cần') ||
-    norm.includes('vắng thi') ||
-    norm.includes('vắng quá');
+    norm.includes('truot diem danh') ||
+    norm.includes('cam thi diem danh');
 
   const isOngoingAssessmentFail =
-    norm.includes('on-going assessment fail') ||
-    norm.includes('ongoing assessment fail') ||
-    norm.includes('on going assessment fail') ||
-    norm.includes('assessment fail') ||
-    norm.includes('điểm thành phần') ||
-    norm.includes('điều kiện thi');
+    !isAttendanceFailed &&
+    (norm.includes('on-going assessment fail') ||
+      norm.includes('ongoing assessment fail') ||
+      norm.includes('on going assessment fail') ||
+      norm.includes('truot diem qua trinh') ||
+      norm.includes('truot dau diem') ||
+      norm.includes('cam thi'));
 
-  const isForbiddenExam = isAttendanceFailed || isOngoingAssessmentFail || norm.includes('cấm thi');
+  const isForbiddenExam = isAttendanceFailed || isOngoingAssessmentFail;
 
-  // Passing/Studying/Not started are counted as achieve/pass; Failed/Attendance Failed/Assessment Fail are not.
-  const isFailed =
-    isForbiddenExam ||
-    norm.includes('failed') ||
-    norm.includes('fail') ||
-    norm.includes('trượt') ||
-    norm.includes('hỏng') ||
-    norm.includes('rớt');
+  const isPending =
+    !isForbiddenExam &&
+    (norm === '' ||
+      norm === 'studying' ||
+      norm.includes('not started') ||
+      norm.includes('not yet') ||
+      norm.includes('chua bat dau') ||
+      norm.includes('da tham gia') ||
+      norm.includes('dang hoc') ||
+      norm.includes('chua xong'));
 
-  const isPassed = !isFailed;
+  const isNotPassed =
+    norm.includes('not pass') || norm.includes('khong dat') || norm.includes('fail') || norm.includes('truot');
 
-  return {
-    isAttendanceFailed,
-    isOngoingAssessmentFail,
-    isForbiddenExam,
-    isPassed,
-  };
+  const isPassed =
+    !isForbiddenExam &&
+    !isPending &&
+    !isNotPassed &&
+    (norm === 'dat' ||
+      norm.includes('passed') ||
+      norm === 'pass' ||
+      norm.includes('mien thi') ||
+      norm.includes('du diem qua trinh'));
+
+  return { isAttendanceFailed, isOngoingAssessmentFail, isForbiddenExam, isPassed, isPending };
 }
 
 /**
@@ -295,7 +324,7 @@ export async function parseWeeklyResultFile(
             if (!subjectCode && !studentCode && !status) continue;
 
             const department = resolveDepartment(subjectCode, customMappings);
-            const { isAttendanceFailed, isOngoingAssessmentFail, isForbiddenExam, isPassed } = evaluateStatus(status);
+            const { isAttendanceFailed, isOngoingAssessmentFail, isForbiddenExam, isPassed, isPending } = evaluateStatus(status);
             const isoDate = parseDateToIso(startDateVal);
 
             rows.push({
@@ -308,6 +337,7 @@ export async function parseWeeklyResultFile(
               isOngoingAssessmentFail,
               isForbiddenExam,
               isPassed,
+              isPending,
               department,
               block: assignedBlock,
               startDate: isoDate || undefined,
