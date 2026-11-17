@@ -92,18 +92,24 @@ export interface Table1RowData {
   allPercentage: number;
   allForbiddenCount: number | null;
   allForbiddenRate: number | null;
+  allAttendanceCount: number | null; // Cấm thi do trượt điểm danh
+  allAttendanceRate: number | null;
   allPassRate: number | null;
   // Block 1
   b1Count: number;
   b1Percentage: number;
   b1ForbiddenCount: number | null;
   b1ForbiddenRate: number | null;
+  b1AttendanceCount: number | null; // Cấm thi do trượt điểm danh
+  b1AttendanceRate: number | null;
   b1PassRate: number | null;
   // Block 2
   b2Count: number;
   b2Percentage: number;
   b2ForbiddenCount: number | null;
   b2ForbiddenRate: number | null;
+  b2AttendanceCount: number | null; // Cấm thi do trượt điểm danh
+  b2AttendanceRate: number | null;
   b2PassRate: number | null;
 }
 

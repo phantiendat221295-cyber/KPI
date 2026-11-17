@@ -44,18 +44,24 @@ export function exportOkrReportToExcel(
       'Pass % (FA26)',
       'SL Cấm thi (FA26)',
       'Tỷ lệ cấm thi % (FA26)',
+      'SL Cấm thi do trượt ĐD (FA26)',
+      'Tỷ lệ cấm thi do trượt ĐD % (FA26)',
       // Nhóm Block 1
       'Số lượt SV (Block 1)',
       '% Lượt SV (Block 1)',
       'Pass % (Block 1)',
       'SL Cấm thi (Block 1)',
       'Tỷ lệ cấm thi % (Block 1)',
+      'SL Cấm thi do trượt ĐD (Block 1)',
+      'Tỷ lệ cấm thi do trượt ĐD % (Block 1)',
       // Nhóm Block 2
       'Số lượt SV (Block 2)',
       '% Lượt SV (Block 2)',
       'Pass % (Block 2)',
       'SL Cấm thi (Block 2)',
       'Tỷ lệ cấm thi % (Block 2)',
+      'SL Cấm thi do trượt ĐD (Block 2)',
+      'Tỷ lệ cấm thi do trượt ĐD % (Block 2)',
     ],
   ];
 
@@ -65,21 +71,7 @@ export function exportOkrReportToExcel(
         row.stt,
         row.campus,
         row.department,
-        '-',
-        '-',
-        '-',
-        '-',
-        '-',
-        '-',
-        '-',
-        '-',
-        '-',
-        '-',
-        '-',
-        '-',
-        '-',
-        '-',
-        '-',
+        ...Array(21).fill('-'),
       ]);
     } else {
       sheet1Data.push([
@@ -91,16 +83,22 @@ export function exportOkrReportToExcel(
         formatPercent(row.allPassRate),
         formatCount(row.allForbiddenCount),
         formatPercent(row.allForbiddenRate),
+        formatCount(row.allAttendanceCount),
+        formatPercent(row.allAttendanceRate),
         row.b1Count,
         formatPercent(row.b1Percentage),
         formatPercent(row.b1PassRate),
         formatCount(row.b1ForbiddenCount),
         formatPercent(row.b1ForbiddenRate),
+        formatCount(row.b1AttendanceCount),
+        formatPercent(row.b1AttendanceRate),
         row.b2Count,
         formatPercent(row.b2Percentage),
         formatPercent(row.b2PassRate),
         formatCount(row.b2ForbiddenCount),
         formatPercent(row.b2ForbiddenRate),
+        formatCount(row.b2AttendanceCount),
+        formatPercent(row.b2AttendanceRate),
       ]);
     }
   });
@@ -115,16 +113,22 @@ export function exportOkrReportToExcel(
     formatPercent(table1Total.allPassRate),
     formatCount(table1Total.allForbiddenCount),
     formatPercent(table1Total.allForbiddenRate),
+    formatCount(table1Total.allAttendanceCount),
+    formatPercent(table1Total.allAttendanceRate),
     table1Total.b1Count,
     formatPercent(table1Total.b1Percentage),
     formatPercent(table1Total.b1PassRate),
     formatCount(table1Total.b1ForbiddenCount),
     formatPercent(table1Total.b1ForbiddenRate),
+    formatCount(table1Total.b1AttendanceCount),
+    formatPercent(table1Total.b1AttendanceRate),
     table1Total.b2Count,
     formatPercent(table1Total.b2Percentage),
     formatPercent(table1Total.b2PassRate),
     formatCount(table1Total.b2ForbiddenCount),
     formatPercent(table1Total.b2ForbiddenRate),
+    formatCount(table1Total.b2AttendanceCount),
+    formatPercent(table1Total.b2AttendanceRate),
   ]);
 
   const ws1 = XLSX.utils.aoa_to_sheet(sheet1Data);
@@ -138,18 +142,24 @@ export function exportOkrReportToExcel(
     { wch: 14 },
     { wch: 16 },
     { wch: 20 },
+    { wch: 22 },
+    { wch: 26 },
     // Block 1
     { wch: 18 },
     { wch: 16 },
     { wch: 14 },
     { wch: 16 },
     { wch: 20 },
+    { wch: 22 },
+    { wch: 26 },
     // Block 2
     { wch: 18 },
     { wch: 16 },
     { wch: 14 },
     { wch: 16 },
     { wch: 20 },
+    { wch: 22 },
+    { wch: 26 },
   ];
   XLSX.utils.book_append_sheet(wb, ws1, 'Bang 1 - Tong Hop FA26');
 

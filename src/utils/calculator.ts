@@ -41,6 +41,13 @@ function forbiddenOf(rows: StudentResultRow[]): { count: number | null; rate: nu
   return { count, rate: (count / rows.length) * 100 };
 }
 
+/** Cấm thi do trượt điểm danh = Trượt điểm danh / tổng lượt SV */
+function attendanceOf(rows: StudentResultRow[]): { count: number | null; rate: number | null } {
+  if (rows.length === 0) return { count: null, rate: null };
+  const count = rows.filter((r) => st(r).isAttendanceFailed).length;
+  return { count, rate: (count / rows.length) * 100 };
+}
+
 /** Pass = Đạt / (tổng lượt SV - SV chưa có kết quả) */
 function passOf(rows: StudentResultRow[]): { count: number | null; rate: number | null } {
   if (rows.length === 0) return { count: null, rate: null };
@@ -127,16 +134,22 @@ export function computeTable1Data(
         allPercentage: 0,
         allForbiddenCount: null,
         allForbiddenRate: null,
+        allAttendanceCount: null,
+        allAttendanceRate: null,
         allPassRate: null,
         b1Count: 0,
         b1Percentage: 0,
         b1ForbiddenCount: null,
         b1ForbiddenRate: null,
+        b1AttendanceCount: null,
+        b1AttendanceRate: null,
         b1PassRate: null,
         b2Count: 0,
         b2Percentage: 0,
         b2ForbiddenCount: null,
         b2ForbiddenRate: null,
+        b2AttendanceCount: null,
+        b2AttendanceRate: null,
         b2PassRate: null,
       };
     }
@@ -163,6 +176,10 @@ export function computeTable1Data(
     const allForbidden = calculateForbiddenStats(combinedLatestResults, dept.code);
     const allPass = calculatePassStats(combinedWeek8Results, dept.code);
 
+    const b1Att = attendanceOf(b1LatestResults.filter((r) => r.department === dept.code));
+    const b2Att = attendanceOf(b2LatestResults.filter((r) => r.department === dept.code));
+    const allAtt = attendanceOf(combinedLatestResults.filter((r) => r.department === dept.code));
+
     return {
       stt: index + 1,
       campus: 'DNA',
@@ -172,16 +189,22 @@ export function computeTable1Data(
       allPercentage,
       allForbiddenCount: allForbidden.count,
       allForbiddenRate: allForbidden.rate,
+      allAttendanceCount: allAtt.count,
+      allAttendanceRate: allAtt.rate,
       allPassRate: allPass.rate,
       b1Count: deptB1Count,
       b1Percentage,
       b1ForbiddenCount: b1Forbidden.count,
       b1ForbiddenRate: b1Forbidden.rate,
+      b1AttendanceCount: b1Att.count,
+      b1AttendanceRate: b1Att.rate,
       b1PassRate: b1Pass.rate,
       b2Count: deptB2Count,
       b2Percentage,
       b2ForbiddenCount: b2Forbidden.count,
       b2ForbiddenRate: b2Forbidden.rate,
+      b2AttendanceCount: b2Att.count,
+      b2AttendanceRate: b2Att.rate,
       b2PassRate: b2Pass.rate,
     };
   });
@@ -192,6 +215,9 @@ export function computeTable1Data(
   const totalB1Pass = calculateTotalPassStats(b1Week8Results);
   const totalB2Forbidden = calculateTotalForbiddenStats(b2LatestResults);
   const totalB2Pass = calculateTotalPassStats(b2Week8Results);
+  const totalAllAtt = attendanceOf(combinedLatestResults);
+  const totalB1Att = attendanceOf(b1LatestResults);
+  const totalB2Att = attendanceOf(b2LatestResults);
 
   const totalRow: Table1RowData = {
     stt: 0,
@@ -202,16 +228,22 @@ export function computeTable1Data(
     allPercentage: totalAll > 0 ? 100 : 0,
     allForbiddenCount: totalAllForbidden.count,
     allForbiddenRate: totalAllForbidden.rate,
+    allAttendanceCount: totalAllAtt.count,
+    allAttendanceRate: totalAllAtt.rate,
     allPassRate: totalAllPass.rate,
     b1Count: totalB1,
     b1Percentage: totalB1 > 0 ? 100 : 0,
     b1ForbiddenCount: totalB1Forbidden.count,
     b1ForbiddenRate: totalB1Forbidden.rate,
+    b1AttendanceCount: totalB1Att.count,
+    b1AttendanceRate: totalB1Att.rate,
     b1PassRate: totalB1Pass.rate,
     b2Count: totalB2,
     b2Percentage: totalB2 > 0 ? 100 : 0,
     b2ForbiddenCount: totalB2Forbidden.count,
     b2ForbiddenRate: totalB2Forbidden.rate,
+    b2AttendanceCount: totalB2Att.count,
+    b2AttendanceRate: totalB2Att.rate,
     b2PassRate: totalB2Pass.rate,
   };
 

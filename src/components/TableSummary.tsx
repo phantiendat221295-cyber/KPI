@@ -45,7 +45,7 @@ export const TableSummary: React.FC<TableSummaryProps> = ({
             Bảng 1: Thống kê Tổng quan Học kỳ (FA26, Block 1, Block 2)
           </h3>
           <p className="text-xs text-gray-500 mt-0.5">
-            Cơ sở: FPT Polytechnic Đồng Nai (DNA) • Cập nhật số lượt SV, Pass (%), SL Cấm thi và Tỷ lệ cấm thi (%)
+            Cơ sở: FPT Polytechnic Đồng Nai (DNA) • Cập nhật số lượt SV, Pass (%), SL Cấm thi, Tỷ lệ cấm thi (%) và Cấm thi do trượt điểm danh
           </p>
         </div>
 
@@ -86,7 +86,7 @@ export const TableSummary: React.FC<TableSummaryProps> = ({
 
               {/* Group FA26 (Vàng nhạt) */}
               <th
-                colSpan={5}
+                colSpan={7}
                 className="px-2 py-1.5 border-r border-gray-300 bg-amber-50/70 text-amber-900 font-bold"
               >
                 Học kỳ FA26
@@ -94,7 +94,7 @@ export const TableSummary: React.FC<TableSummaryProps> = ({
 
               {/* Group Block 1 (Xanh lá nhạt) */}
               <th
-                colSpan={5}
+                colSpan={7}
                 className="px-2 py-1.5 border-r border-gray-300 bg-emerald-50/70 text-emerald-900 font-bold"
               >
                 Block 1
@@ -102,7 +102,7 @@ export const TableSummary: React.FC<TableSummaryProps> = ({
 
               {/* Group Block 2 (Xanh dương nhạt) */}
               <th
-                colSpan={5}
+                colSpan={7}
                 className="px-2 py-1.5 bg-blue-50/70 text-blue-900 font-bold"
               >
                 Block 2
@@ -117,6 +117,8 @@ export const TableSummary: React.FC<TableSummaryProps> = ({
               <th className="px-2 py-1.5 border-r border-gray-300">Pass (%)</th>
               <th className="px-2 py-1.5 border-r border-gray-300">SL Cấm thi</th>
               <th className="px-2 py-1.5 border-r border-gray-300">Tỷ lệ cấm (%)</th>
+              <th className="px-2 py-1.5 border-r border-gray-300 bg-orange-50">SL Cấm thi ĐD</th>
+              <th className="px-2 py-1.5 border-r border-gray-300 bg-orange-50">Tỷ lệ cấm ĐD (%)</th>
 
               {/* Block 1 cols */}
               <th className="px-2 py-1.5 border-r border-gray-300">Số lượt SV</th>
@@ -124,13 +126,17 @@ export const TableSummary: React.FC<TableSummaryProps> = ({
               <th className="px-2 py-1.5 border-r border-gray-300">Pass (%)</th>
               <th className="px-2 py-1.5 border-r border-gray-300">SL Cấm thi</th>
               <th className="px-2 py-1.5 border-r border-gray-300">Tỷ lệ cấm (%)</th>
+              <th className="px-2 py-1.5 border-r border-gray-300 bg-orange-50">SL Cấm thi ĐD</th>
+              <th className="px-2 py-1.5 border-r border-gray-300 bg-orange-50">Tỷ lệ cấm ĐD (%)</th>
 
               {/* Block 2 cols */}
               <th className="px-2 py-1.5 border-r border-gray-300">Số lượt SV</th>
               <th className="px-2 py-1.5 border-r border-gray-300">% Lượt SV</th>
               <th className="px-2 py-1.5 border-r border-gray-300">Pass (%)</th>
               <th className="px-2 py-1.5 border-r border-gray-300">SL Cấm thi</th>
-              <th className="px-2 py-1.5">Tỷ lệ cấm (%)</th>
+              <th className="px-2 py-1.5 border-r border-gray-300">Tỷ lệ cấm (%)</th>
+              <th className="px-2 py-1.5 border-r border-gray-300 bg-orange-50">SL Cấm thi ĐD</th>
+              <th className="px-2 py-1.5 bg-orange-50">Tỷ lệ cấm ĐD (%)</th>
             </tr>
           </thead>
 
@@ -169,6 +175,12 @@ export const TableSummary: React.FC<TableSummaryProps> = ({
                   <td className="px-2 py-2 text-right font-medium text-rose-700 border-r border-gray-200">
                     {row.isSupported ? formatPercent(row.allForbiddenRate) : '-'}
                   </td>
+                  <td className="px-2 py-2 text-right font-medium text-orange-700 bg-orange-50/40 border-r border-gray-200">
+                    {formatCount(row.allAttendanceCount, row.isSupported)}
+                  </td>
+                  <td className="px-2 py-2 text-right font-medium text-orange-700 bg-orange-50/40 border-r border-gray-200">
+                    {row.isSupported ? formatPercent(row.allAttendanceRate) : '-'}
+                  </td>
 
                   {/* Block 1 Data */}
                   <td className="px-2 py-2 text-right border-r border-gray-200">
@@ -186,6 +198,12 @@ export const TableSummary: React.FC<TableSummaryProps> = ({
                   <td className="px-2 py-2 text-right font-medium text-rose-700 border-r border-gray-200">
                     {row.isSupported ? formatPercent(row.b1ForbiddenRate) : '-'}
                   </td>
+                  <td className="px-2 py-2 text-right font-medium text-orange-700 bg-orange-50/40 border-r border-gray-200">
+                    {formatCount(row.b1AttendanceCount, row.isSupported)}
+                  </td>
+                  <td className="px-2 py-2 text-right font-medium text-orange-700 bg-orange-50/40 border-r border-gray-200">
+                    {row.isSupported ? formatPercent(row.b1AttendanceRate) : '-'}
+                  </td>
 
                   {/* Block 2 Data */}
                   <td className="px-2 py-2 text-right border-r border-gray-200">
@@ -200,8 +218,14 @@ export const TableSummary: React.FC<TableSummaryProps> = ({
                   <td className="px-2 py-2 text-right font-medium text-rose-700 border-r border-gray-200">
                     {formatCount(row.b2ForbiddenCount, row.isSupported)}
                   </td>
-                  <td className="px-2 py-2 text-right font-medium text-rose-700">
+                  <td className="px-2 py-2 text-right font-medium text-rose-700 border-r border-gray-200">
                     {row.isSupported ? formatPercent(row.b2ForbiddenRate) : '-'}
+                  </td>
+                  <td className="px-2 py-2 text-right font-medium text-orange-700 bg-orange-50/40 border-r border-gray-200">
+                    {formatCount(row.b2AttendanceCount, row.isSupported)}
+                  </td>
+                  <td className="px-2 py-2 text-right font-medium text-orange-700 bg-orange-50/40">
+                    {row.isSupported ? formatPercent(row.b2AttendanceRate) : '-'}
                   </td>
                 </tr>
               );
@@ -235,6 +259,12 @@ export const TableSummary: React.FC<TableSummaryProps> = ({
               <td className="px-2 py-2.5 text-right border-r border-gray-300 text-rose-700 font-bold">
                 {formatPercent(totalRow.allForbiddenRate)}
               </td>
+              <td className="px-2 py-2.5 text-right border-r border-gray-300 text-orange-700 font-bold">
+                {formatCount(totalRow.allAttendanceCount, true)}
+              </td>
+              <td className="px-2 py-2.5 text-right border-r border-gray-300 text-orange-700 font-bold">
+                {formatPercent(totalRow.allAttendanceRate)}
+              </td>
 
               {/* Block 1 totals */}
               <td className="px-2 py-2.5 text-right border-r border-gray-300 font-bold text-emerald-800">
@@ -252,6 +282,12 @@ export const TableSummary: React.FC<TableSummaryProps> = ({
               <td className="px-2 py-2.5 text-right border-r border-gray-300 text-rose-700 font-bold">
                 {formatPercent(totalRow.b1ForbiddenRate)}
               </td>
+              <td className="px-2 py-2.5 text-right border-r border-gray-300 text-orange-700 font-bold">
+                {formatCount(totalRow.b1AttendanceCount, true)}
+              </td>
+              <td className="px-2 py-2.5 text-right border-r border-gray-300 text-orange-700 font-bold">
+                {formatPercent(totalRow.b1AttendanceRate)}
+              </td>
 
               {/* Block 2 totals */}
               <td className="px-2 py-2.5 text-right border-r border-gray-300 font-bold text-blue-800">
@@ -266,8 +302,14 @@ export const TableSummary: React.FC<TableSummaryProps> = ({
               <td className="px-2 py-2.5 text-right border-r border-gray-300 text-rose-700 font-bold">
                 {formatCount(totalRow.b2ForbiddenCount, true)}
               </td>
-              <td className="px-2 py-2.5 text-right text-rose-700 font-bold">
+              <td className="px-2 py-2.5 text-right border-r border-gray-300 text-rose-700 font-bold">
                 {formatPercent(totalRow.b2ForbiddenRate)}
+              </td>
+              <td className="px-2 py-2.5 text-right border-r border-gray-300 text-orange-700 font-bold">
+                {formatCount(totalRow.b2AttendanceCount, true)}
+              </td>
+              <td className="px-2 py-2.5 text-right text-orange-700 font-bold">
+                {formatPercent(totalRow.b2AttendanceRate)}
               </td>
             </tr>
           </tfoot>
