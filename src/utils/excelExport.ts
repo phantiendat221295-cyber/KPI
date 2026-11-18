@@ -41,6 +41,7 @@ export function exportOkrReportToExcel(
       // Nhóm FA26
       'Số lượt SV (FA26)',
       '% Lượt SV (FA26)',
+      'SL Đạt (FA26)',
       'Pass % (FA26)',
       'SL Cấm thi (FA26)',
       'Tỷ lệ cấm thi % (FA26)',
@@ -49,6 +50,7 @@ export function exportOkrReportToExcel(
       // Nhóm Block 1
       'Số lượt SV (Block 1)',
       '% Lượt SV (Block 1)',
+      'SL Đạt (Block 1)',
       'Pass % (Block 1)',
       'SL Cấm thi (Block 1)',
       'Tỷ lệ cấm thi % (Block 1)',
@@ -57,6 +59,7 @@ export function exportOkrReportToExcel(
       // Nhóm Block 2
       'Số lượt SV (Block 2)',
       '% Lượt SV (Block 2)',
+      'SL Đạt (Block 2)',
       'Pass % (Block 2)',
       'SL Cấm thi (Block 2)',
       'Tỷ lệ cấm thi % (Block 2)',
@@ -71,7 +74,7 @@ export function exportOkrReportToExcel(
         row.stt,
         row.campus,
         row.department,
-        ...Array(21).fill('-'),
+        ...Array(24).fill('-'),
       ]);
     } else {
       sheet1Data.push([
@@ -80,6 +83,7 @@ export function exportOkrReportToExcel(
         row.department,
         row.allCount,
         formatPercent(row.allPercentage),
+        formatCount(row.allPassCount),
         formatPercent(row.allPassRate),
         formatCount(row.allForbiddenCount),
         formatPercent(row.allForbiddenRate),
@@ -87,6 +91,7 @@ export function exportOkrReportToExcel(
         formatPercent(row.allAttendanceRate),
         row.b1Count,
         formatPercent(row.b1Percentage),
+        formatCount(row.b1PassCount),
         formatPercent(row.b1PassRate),
         formatCount(row.b1ForbiddenCount),
         formatPercent(row.b1ForbiddenRate),
@@ -94,6 +99,7 @@ export function exportOkrReportToExcel(
         formatPercent(row.b1AttendanceRate),
         row.b2Count,
         formatPercent(row.b2Percentage),
+        formatCount(row.b2PassCount),
         formatPercent(row.b2PassRate),
         formatCount(row.b2ForbiddenCount),
         formatPercent(row.b2ForbiddenRate),
@@ -110,6 +116,7 @@ export function exportOkrReportToExcel(
     'Tổng cơ sở',
     table1Total.allCount,
     formatPercent(table1Total.allPercentage),
+    formatCount(table1Total.allPassCount),
     formatPercent(table1Total.allPassRate),
     formatCount(table1Total.allForbiddenCount),
     formatPercent(table1Total.allForbiddenRate),
@@ -117,6 +124,7 @@ export function exportOkrReportToExcel(
     formatPercent(table1Total.allAttendanceRate),
     table1Total.b1Count,
     formatPercent(table1Total.b1Percentage),
+    formatCount(table1Total.b1PassCount),
     formatPercent(table1Total.b1PassRate),
     formatCount(table1Total.b1ForbiddenCount),
     formatPercent(table1Total.b1ForbiddenRate),
@@ -124,6 +132,7 @@ export function exportOkrReportToExcel(
     formatPercent(table1Total.b1AttendanceRate),
     table1Total.b2Count,
     formatPercent(table1Total.b2Percentage),
+    formatCount(table1Total.b2PassCount),
     formatPercent(table1Total.b2PassRate),
     formatCount(table1Total.b2ForbiddenCount),
     formatPercent(table1Total.b2ForbiddenRate),
@@ -139,6 +148,7 @@ export function exportOkrReportToExcel(
     // FA26
     { wch: 18 },
     { wch: 16 },
+    { wch: 12 },
     { wch: 14 },
     { wch: 16 },
     { wch: 20 },
@@ -147,6 +157,7 @@ export function exportOkrReportToExcel(
     // Block 1
     { wch: 18 },
     { wch: 16 },
+    { wch: 12 },
     { wch: 14 },
     { wch: 16 },
     { wch: 20 },
@@ -155,6 +166,7 @@ export function exportOkrReportToExcel(
     // Block 2
     { wch: 18 },
     { wch: 16 },
+    { wch: 12 },
     { wch: 14 },
     { wch: 16 },
     { wch: 20 },

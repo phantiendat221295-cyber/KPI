@@ -95,6 +95,7 @@ export interface Table1RowData {
   allAttendanceCount: number | null; // Cấm thi do trượt điểm danh
   allAttendanceRate: number | null;
   allPassRate: number | null;
+  allPassCount: number | null; // SL SV đạt
   // Block 1
   b1Count: number;
   b1Percentage: number;
@@ -103,6 +104,7 @@ export interface Table1RowData {
   b1AttendanceCount: number | null; // Cấm thi do trượt điểm danh
   b1AttendanceRate: number | null;
   b1PassRate: number | null;
+  b1PassCount: number | null; // SL SV đạt
   // Block 2
   b2Count: number;
   b2Percentage: number;
@@ -111,6 +113,7 @@ export interface Table1RowData {
   b2AttendanceCount: number | null; // Cấm thi do trượt điểm danh
   b2AttendanceRate: number | null;
   b2PassRate: number | null;
+  b2PassCount: number | null; // SL SV đạt
 }
 
 export interface Table2RowData {

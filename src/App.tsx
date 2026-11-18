@@ -527,16 +527,16 @@ export default function App() {
   // COMPUTED TABLES (CALCULATIONS)
   // ==========================================
   const { rows: table1Rows, totalRow: table1Total } = useMemo(() => {
-    return computeTable1Data(enrollmentRows, block1Weekly, block2Weekly);
-  }, [enrollmentRows, block1Weekly, block2Weekly]);
+    return computeTable1Data(enrollmentRows, block1Weekly, block2Weekly, config);
+  }, [enrollmentRows, block1Weekly, block2Weekly, config]);
 
   const { rows: table2B1Rows, totalRow: table2B1Total } = useMemo(() => {
-    return computeTable2Data(block1Weekly);
-  }, [block1Weekly]);
+    return computeTable2Data(block1Weekly, 'B1', enrollmentRows, config);
+  }, [block1Weekly, enrollmentRows, config]);
 
   const { rows: table2B2Rows, totalRow: table2B2Total } = useMemo(() => {
-    return computeTable2Data(block2Weekly);
-  }, [block2Weekly]);
+    return computeTable2Data(block2Weekly, 'B2', enrollmentRows, config);
+  }, [block2Weekly, enrollmentRows, config]);
 
   const hasEnrollmentData = enrollmentRows.length > 0;
   const hasExportData =

@@ -1,7 +1,10 @@
 import { DNA_DEPARTMENTS } from '../constants';
 import { evaluateStatus } from './parser';
+import { determineBlockFromDate } from './dateUtils';
 import {
+  BlockType,
   BlockWeeklyData,
+  SemesterConfig,
   DnaDepartmentCode,
   StudentEnrollmentRow,
   StudentResultRow,
@@ -13,17 +16,64 @@ import {
  * Find the latest uploaded week number for a given block
  */
 export function getLatestWeekUploaded(weeklyData: BlockWeeklyData): number | null {
-  // Check from week 6 down to 1
+  // Tuần 8 là dữ liệu chốt cuối block -> ưu tiên nếu đã nạp
+  if (weeklyData[8] && weeklyData[8]!.results.length > 0) {
+    return 8;
+  }
   for (let w = 6; w >= 1; w--) {
     if (weeklyData[w] && weeklyData[w]!.results.length > 0) {
       return w;
     }
   }
-  // If only week 8 uploaded
-  if (weeklyData[8] && weeklyData[8]!.results.length > 0) {
-    return 8;
-  }
   return null;
+}
+
+/**
+ * Xác định block thật của từng lượt học trong file export.csv.
+ * File export thường chứa toàn bộ lượt học của kỳ (cả B1 và B2), nên KHÔNG được
+ * gán cả file vào block của ô đang nạp. Thứ tự ưu tiên:
+ *  1. Tra trong danh_sach_lop_mon (Mã SV + Mã môn + Lớp, rồi Mã SV + Mã môn)
+ *  2. Ngày bắt đầu của dòng (nếu file export có cột ngày)
+ *  3. Block của ô đã nạp (giữ nguyên như cũ)
+ */
+export type BlockResolver = (r: StudentResultRow) => BlockType | undefined;
+
+function norm(v: string | undefined): string {
+  return (v || '').trim().toUpperCase();
+}
+
+export function buildBlockResolver(
+  enrollmentRows: StudentEnrollmentRow[],
+  config?: SemesterConfig
+): BlockResolver {
+  const byFull = new Map<string, BlockType>();
+  const byStudentSubject = new Map<string, BlockType | 'MIXED'>();
+  for (const e of enrollmentRows) {
+    const ss = `${norm(e.studentCode)}|${norm(e.subjectCode)}`;
+    byFull.set(`${ss}|${norm(e.classCode)}`, e.block);
+    const prev = byStudentSubject.get(ss);
+    byStudentSubject.set(ss, prev && prev !== e.block ? 'MIXED' : e.block);
+  }
+
+  return (r: StudentResultRow) => {
+    const ss = `${norm(r.studentCode)}|${norm(r.subjectCode)}`;
+    const full = byFull.get(`${ss}|${norm(r.classCode)}`);
+    if (full) return full;
+    const bySS = byStudentSubject.get(ss);
+    if (bySS && bySS !== 'MIXED') return bySS;
+    if (r.startDate && config) return determineBlockFromDate(r.startDate, config);
+    return r.block;
+  };
+}
+
+/** Lọc chỉ giữ các lượt học thuộc đúng block */
+export function filterByBlock(
+  rows: StudentResultRow[],
+  block: BlockType,
+  resolve?: BlockResolver
+): StudentResultRow[] {
+  if (!resolve) return rows;
+  return rows.filter((r) => resolve(r) === block);
 }
 
 /**
@@ -101,8 +151,10 @@ export function calculateTotalPassStats(
 export function computeTable1Data(
   enrollmentRows: StudentEnrollmentRow[],
   block1Weekly: BlockWeeklyData,
-  block2Weekly: BlockWeeklyData
+  block2Weekly: BlockWeeklyData,
+  config?: SemesterConfig
 ): { rows: Table1RowData[]; totalRow: Table1RowData } {
+  const resolve = buildBlockResolver(enrollmentRows, config);
   const isEnrollmentEmpty = enrollmentRows.length === 0;
 
   // Total enrollments
@@ -114,10 +166,11 @@ export function computeTable1Data(
   const latestB1Week = getLatestWeekUploaded(block1Weekly);
   const latestB2Week = getLatestWeekUploaded(block2Weekly);
 
-  const b1LatestResults = latestB1Week ? block1Weekly[latestB1Week]?.results || [] : [];
-  const b2LatestResults = latestB2Week ? block2Weekly[latestB2Week]?.results || [] : [];
-  const b1Week8Results = block1Weekly[8]?.results || [];
-  const b2Week8Results = block2Weekly[8]?.results || [];
+  // Chỉ giữ lượt học đúng block (file export có thể chứa cả B1 và B2)
+  const b1LatestResults = filterByBlock(latestB1Week ? block1Weekly[latestB1Week]?.results || [] : [], 'B1', resolve);
+  const b2LatestResults = filterByBlock(latestB2Week ? block2Weekly[latestB2Week]?.results || [] : [], 'B2', resolve);
+  const b1Week8Results = filterByBlock(block1Weekly[8]?.results || [], 'B1', resolve);
+  const b2Week8Results = filterByBlock(block2Weekly[8]?.results || [], 'B2', resolve);
 
   // Combined results for FA26
   const combinedLatestResults = [...b1LatestResults, ...b2LatestResults];
@@ -137,6 +190,7 @@ export function computeTable1Data(
         allAttendanceCount: null,
         allAttendanceRate: null,
         allPassRate: null,
+        allPassCount: null,
         b1Count: 0,
         b1Percentage: 0,
         b1ForbiddenCount: null,
@@ -144,6 +198,7 @@ export function computeTable1Data(
         b1AttendanceCount: null,
         b1AttendanceRate: null,
         b1PassRate: null,
+        b1PassCount: null,
         b2Count: 0,
         b2Percentage: 0,
         b2ForbiddenCount: null,
@@ -151,6 +206,7 @@ export function computeTable1Data(
         b2AttendanceCount: null,
         b2AttendanceRate: null,
         b2PassRate: null,
+        b2PassCount: null,
       };
     }
 
@@ -192,6 +248,7 @@ export function computeTable1Data(
       allAttendanceCount: allAtt.count,
       allAttendanceRate: allAtt.rate,
       allPassRate: allPass.rate,
+      allPassCount: allPass.count,
       b1Count: deptB1Count,
       b1Percentage,
       b1ForbiddenCount: b1Forbidden.count,
@@ -199,6 +256,7 @@ export function computeTable1Data(
       b1AttendanceCount: b1Att.count,
       b1AttendanceRate: b1Att.rate,
       b1PassRate: b1Pass.rate,
+      b1PassCount: b1Pass.count,
       b2Count: deptB2Count,
       b2Percentage,
       b2ForbiddenCount: b2Forbidden.count,
@@ -206,6 +264,7 @@ export function computeTable1Data(
       b2AttendanceCount: b2Att.count,
       b2AttendanceRate: b2Att.rate,
       b2PassRate: b2Pass.rate,
+      b2PassCount: b2Pass.count,
     };
   });
 
@@ -231,6 +290,7 @@ export function computeTable1Data(
     allAttendanceCount: totalAllAtt.count,
     allAttendanceRate: totalAllAtt.rate,
     allPassRate: totalAllPass.rate,
+    allPassCount: totalAllPass.count,
     b1Count: totalB1,
     b1Percentage: totalB1 > 0 ? 100 : 0,
     b1ForbiddenCount: totalB1Forbidden.count,
@@ -238,6 +298,7 @@ export function computeTable1Data(
     b1AttendanceCount: totalB1Att.count,
     b1AttendanceRate: totalB1Att.rate,
     b1PassRate: totalB1Pass.rate,
+    b1PassCount: totalB1Pass.count,
     b2Count: totalB2,
     b2Percentage: totalB2 > 0 ? 100 : 0,
     b2ForbiddenCount: totalB2Forbidden.count,
@@ -245,6 +306,7 @@ export function computeTable1Data(
     b2AttendanceCount: totalB2Att.count,
     b2AttendanceRate: totalB2Att.rate,
     b2PassRate: totalB2Pass.rate,
+    b2PassCount: totalB2Pass.count,
   };
 
   return { rows, totalRow };
@@ -255,8 +317,17 @@ export function computeTable1Data(
  * Columns: CS | BM | Tuần 8 - Pass (%) | Tuần 1 [SL Cấm | % Cấm thi] | ... | Tuần 6 [SL Cấm | % Cấm thi]
  */
 export function computeTable2Data(
-  weeklyData: BlockWeeklyData
+  rawWeeklyData: BlockWeeklyData,
+  block?: BlockType,
+  enrollmentRows: StudentEnrollmentRow[] = [],
+  config?: SemesterConfig
 ): { rows: Table2RowData[]; totalRow: Table2RowData } {
+  const resolve = block ? buildBlockResolver(enrollmentRows, config) : undefined;
+  const weeklyData: Record<number, { results: StudentResultRow[] } | undefined> = {};
+  for (const w of [1, 2, 3, 4, 5, 6, 8]) {
+    const rec = rawWeeklyData[w];
+    weeklyData[w] = rec ? { results: block ? filterByBlock(rec.results, block, resolve) : rec.results } : undefined;
+  }
   const rows: Table2RowData[] = DNA_DEPARTMENTS.map((dept, index) => {
     if (!dept.isSupportedAtDna) {
       return {
