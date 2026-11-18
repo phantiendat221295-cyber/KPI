@@ -13,6 +13,7 @@ import {
   Eye,
 } from 'lucide-react';
 import { BlockType, BlockWeeklyData, UserRole } from '../types';
+import type { SaveStatus } from '../types';
 import { WEEK_SLOTS } from '../constants';
 import { downloadSampleTemplate } from '../utils/excelExport';
 
@@ -37,6 +38,8 @@ interface UploadSectionProps {
   // Cloud Sync trigger
   hasCloudApi: boolean;
   isSyncing: boolean;
+  saveStatus: SaveStatus;
+  lastSyncedAt: string | null;
   onSyncToCloud: () => void;
   onOpenConfig: () => void;
 }
@@ -58,6 +61,8 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
   onClearWeeklyFile,
   hasCloudApi,
   isSyncing,
+  saveStatus,
+  lastSyncedAt,
   onSyncToCloud,
   onOpenConfig,
 }) => {
@@ -87,27 +92,46 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
             )}
           </h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            Cơ sở FPT Polytechnic Đồng Nai (DNA) • Tự động tính toán &amp; đồng bộ trực tuyến qua Google Sheets
+            Cơ sở FPT Polytechnic Đồng Nai (DNA) • Nạp file là tự động tính toán &amp; lưu lên Google Sheets
           </p>
         </div>
 
         {/* Action Buttons & Templates */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Cloud Sync Button if Admin and Data Loaded */}
+          {/* Trạng thái tự động lưu (không cần bấm đồng bộ tay) */}
           {!isViewer && hasLoadedData && (
-            <button
-              onClick={hasCloudApi ? onSyncToCloud : onOpenConfig}
-              disabled={isSyncing}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-2xs transition-colors"
-              title="Đồng bộ ngay dữ liệu lên Google Sheets"
-            >
-              {isSyncing ? (
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              ) : (
+            hasCloudApi ? (
+              <span
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border ${
+                  saveStatus === 'error'
+                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                    : saveStatus === 'pending' || saveStatus === 'saving' || isSyncing
+                      ? 'bg-blue-50 text-[#0066B3] border-blue-200'
+                      : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                }`}
+              >
+                {saveStatus === 'pending' || saveStatus === 'saving' || isSyncing ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <CloudUpload className="w-3.5 h-3.5" />
+                )}
+                {saveStatus === 'error' ? (
+                  <button onClick={onSyncToCloud} className="underline font-semibold">Lưu chưa thành công · Thử lại</button>
+                ) : saveStatus === 'pending' || saveStatus === 'saving' || isSyncing ? (
+                  <span>Đang tự động lưu…</span>
+                ) : (
+                  <span>Tự động lưu khi nạp file{lastSyncedAt ? ` · lần cuối ${lastSyncedAt}` : ''}</span>
+                )}
+              </span>
+            ) : (
+              <button
+                onClick={onOpenConfig}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold shadow-2xs transition-colors"
+              >
                 <CloudUpload className="w-3.5 h-3.5" />
-              )}
-              <span>{hasCloudApi ? 'Đồng bộ lên Cloud (Google Sheets)' : 'Kết nối Cloud để lưu'}</span>
-            </button>
+                <span>Kết nối Cloud để tự động lưu</span>
+              </button>
+            )
           )}
 
           {/* Template Downloads */}

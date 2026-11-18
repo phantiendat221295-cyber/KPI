@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Search,
   Download,
-  Moon,
-  Sun,
   User,
+  AlertTriangle,
+  HardDrive,
+  Loader2,
   ChevronRight,
   Cloud,
   CloudUpload,
@@ -14,6 +15,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { SemesterConfig, UserRole } from '../types';
+import type { SaveStatus } from '../types';
 
 interface HeaderProps {
   config: SemesterConfig;
@@ -28,6 +30,7 @@ interface HeaderProps {
   lastSyncedAt: string | null;
   onSyncToCloud: () => void;
   onFetchFromCloud: () => void;
+  saveStatus: SaveStatus;
   // Role
   userRole: UserRole;
   onToggleRole: () => void;
@@ -45,10 +48,10 @@ export const Header: React.FC<HeaderProps> = ({
   lastSyncedAt,
   onSyncToCloud,
   onFetchFromCloud,
+  saveStatus,
   userRole,
   onToggleRole,
 }) => {
-  const [isDarkMode, setIsDarkMode] = useState(false);
 
   return (
     <header className="sticky top-0 z-30 h-16 bg-white border-b border-gray-200 px-5 flex items-center justify-between">
@@ -76,16 +79,6 @@ export const Header: React.FC<HeaderProps> = ({
             kpi-daotao-dna.vercel.app
           </span>
 
-          {/* Sync Timestamp Badge */}
-          {lastSyncedAt && (
-            <span
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] bg-emerald-50 text-emerald-800 border border-emerald-200 font-medium"
-              title={`Dữ liệu Google Sheets cập nhật mới nhất lúc: ${lastSyncedAt}`}
-            >
-              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-              <span>Đồng bộ: {lastSyncedAt}</span>
-            </span>
-          )}
         </div>
       </div>
 
@@ -117,21 +110,9 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="hidden sm:inline">Làm mới Cloud</span>
             </button>
 
-            {/* Sync to Cloud (Only for Admin) */}
+            {/* Trạng thái tự động lưu (Admin) */}
             {userRole === 'admin' && (
-              <button
-                onClick={onSyncToCloud}
-                disabled={isSyncing}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-[#0066B3] hover:bg-[#005291] text-white text-xs font-medium shadow-2xs transition-colors"
-                title="Lưu toàn bộ dữ liệu phân tích lên Google Sheets"
-              >
-                {isSyncing ? (
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <CloudUpload className="w-3.5 h-3.5" />
-                )}
-                <span className="hidden sm:inline">Đồng bộ lên Cloud</span>
-              </button>
+              <SaveIndicator status={saveStatus} lastSyncedAt={lastSyncedAt} isSyncing={isSyncing} onRetry={onSyncToCloud} />
             )}
           </div>
         ) : (
@@ -154,14 +135,6 @@ export const Header: React.FC<HeaderProps> = ({
           <Download className="w-4 h-4" />
         </button>
 
-        {/* Dark / Light Toggle icon */}
-        <button
-          onClick={() => setIsDarkMode(!isDarkMode)}
-          className="p-1.5 rounded-md text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors"
-          title={isDarkMode ? 'Giao diện sáng' : 'Giao diện tối'}
-        >
-          {isDarkMode ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4" />}
-        </button>
 
         {/* User Role Switcher */}
         <button
@@ -202,5 +175,55 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
     </header>
+  );
+};
+
+/** Ô trạng thái lưu tự động: Đang lưu / Đã lưu lúc ... / Lỗi - Thử lại */
+const SaveIndicator: React.FC<{
+  status: SaveStatus;
+  lastSyncedAt: string | null;
+  isSyncing: boolean;
+  onRetry: () => void;
+}> = ({ status, lastSyncedAt, isSyncing, onRetry }) => {
+  if (status === 'pending' || status === 'saving' || isSyncing) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-blue-200 bg-blue-50 text-[#0066B3] text-xs font-medium">
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        <span className="hidden sm:inline">Đang lưu lên Cloud…</span>
+      </span>
+    );
+  }
+  if (status === 'error') {
+    return (
+      <button
+        onClick={onRetry}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold transition-colors"
+        title="Lưu lên Google Sheets chưa thành công. Bấm để thử lại."
+      >
+        <AlertTriangle className="w-3.5 h-3.5" />
+        <span>Chưa lưu · Thử lại</span>
+      </button>
+    );
+  }
+  if (status === 'local') {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-amber-200 bg-amber-50 text-amber-800 text-xs font-medium"
+        title="Chưa kết nối Google Sheets: dữ liệu chỉ lưu trên trình duyệt này"
+      >
+        <HardDrive className="w-3.5 h-3.5" />
+        <span className="hidden sm:inline">Chỉ lưu trên máy này</span>
+      </span>
+    );
+  }
+  return (
+    <button
+      onClick={onRetry}
+      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-medium transition-colors"
+      title={lastSyncedAt ? `Tự động lưu lên Google Sheets. Lần lưu gần nhất: ${lastSyncedAt}. Bấm để lưu lại ngay.` : 'Dữ liệu tự động lưu lên Google Sheets sau mỗi lần nạp file'}
+    >
+      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+      <span className="hidden sm:inline">{lastSyncedAt ? `Đã lưu · ${lastSyncedAt}` : 'Tự động lưu'}</span>
+    </button>
   );
 };

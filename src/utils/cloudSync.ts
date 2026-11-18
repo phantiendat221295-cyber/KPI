@@ -220,6 +220,7 @@ export function preparePayloadForCloud(payload: CloudSyncPayload): CloudSyncPayl
           fileName: rec.fileName,
           fileSize: rec.fileSize,
           uploadedAt: rec.uploadedAt,
+          uploadedDate: rec.uploadedDate,
           rowCount: rec.rowCount,
           results: (rec.results || []).map((r: StudentResultRow) => ({
             studentCode: r.studentCode,
@@ -234,7 +235,10 @@ export function preparePayloadForCloud(payload: CloudSyncPayload): CloudSyncPayl
             isPending: r.isPending,
             department: r.department,
             block: r.block,
+            blockFromFile: r.blockFromFile,
             startDate: r.startDate,
+            endDate: r.endDate,
+            score: r.score,
           })),
         };
       }
@@ -250,6 +254,7 @@ export function preparePayloadForCloud(payload: CloudSyncPayload): CloudSyncPayl
           fileName: rec.fileName,
           fileSize: rec.fileSize,
           uploadedAt: rec.uploadedAt,
+          uploadedDate: rec.uploadedDate,
           rowCount: rec.rowCount,
           results: (rec.results || []).map((r: StudentResultRow) => ({
             studentCode: r.studentCode,
@@ -264,7 +269,10 @@ export function preparePayloadForCloud(payload: CloudSyncPayload): CloudSyncPayl
             isPending: r.isPending,
             department: r.department,
             block: r.block,
+            blockFromFile: r.blockFromFile,
             startDate: r.startDate,
+            endDate: r.endDate,
+            score: r.score,
           })),
         };
       }

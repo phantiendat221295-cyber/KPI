@@ -32,6 +32,7 @@ export function getLatestWeekUploaded(weeklyData: BlockWeeklyData): number | nul
  * Xác định block thật của từng lượt học trong file export.csv.
  * File export thường chứa toàn bộ lượt học của kỳ (cả B1 và B2), nên KHÔNG được
  * gán cả file vào block của ô đang nạp. Thứ tự ưu tiên:
+ *  0. Cột "Block" có sẵn trong export.csv
  *  1. Tra trong danh_sach_lop_mon (Mã SV + Mã môn + Lớp, rồi Mã SV + Mã môn)
  *  2. Ngày bắt đầu của dòng (nếu file export có cột ngày)
  *  3. Block của ô đã nạp (giữ nguyên như cũ)
@@ -56,6 +57,7 @@ export function buildBlockResolver(
   }
 
   return (r: StudentResultRow) => {
+    if (r.blockFromFile) return r.blockFromFile;
     const ss = `${norm(r.studentCode)}|${norm(r.subjectCode)}`;
     const full = byFull.get(`${ss}|${norm(r.classCode)}`);
     if (full) return full;
@@ -66,22 +68,61 @@ export function buildBlockResolver(
   };
 }
 
-/** Lọc chỉ giữ các lượt học thuộc đúng block */
+/** Lấy dữ liệu 1 tuần đã gắn mốc ngày nạp file */
+function recordRows(data: BlockWeeklyData, week: number | null): StudentResultRow[] {
+  if (!week) return [];
+  const rec = data[week];
+  if (!rec) return [];
+  return withRefDate(rec.results || [], rec.uploadedDate);
+}
+
+/** Lọc chỉ giữ các lượt học thuộc đúng block (và bỏ lớp thi thử) */
 export function filterByBlock(
   rows: StudentResultRow[],
   block: BlockType,
   resolve?: BlockResolver
 ): StudentResultRow[] {
-  if (!resolve) return rows;
-  return rows.filter((r) => resolve(r) === block);
+  const real = rows.filter((r) => !isTestClass(r.classCode));
+  if (!resolve) return real;
+  return real.filter((r) => resolve(r) === block);
+}
+
+/** Lớp thi thử / lớp test (VD: "TL_EOS test_LOG301_...") - không phải lượt học thật */
+export function isTestClass(classCode?: string): boolean {
+  const c = (classCode || '').toUpperCase();
+  return /\bTEST\b|_TEST|TEST_|TL_EOS/.test(c);
+}
+
+function todayIso(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 /**
  * Luôn tính lại trạng thái từ chuỗi status gốc (kể cả dữ liệu cũ đã lưu trên cloud)
  * để đồng bộ quy tắc với Hệ thống Phổ điểm.
+ *
+ * Bổ sung: lượt "Studying" nhưng môn ĐÃ KẾT THÚC (Ngày cuối < ngày nạp file) và Điểm < 5
+ * -> coi là THI TRƯỢT (đã có kết quả, không đạt), giống Sổ điểm/Phổ điểm.
  */
-function st(r: StudentResultRow) {
-  return evaluateStatus(r.status);
+function st(r: StudentResultRow & { __refDate?: string }) {
+  const base = evaluateStatus(r.status);
+  if (
+    base.isPending &&
+    typeof r.score === 'number' &&
+    r.score < 5 &&
+    r.endDate &&
+    r.endDate < (r.__refDate || todayIso())
+  ) {
+    return { ...base, isPending: false, isPassed: false };
+  }
+  return base;
+}
+
+/** Gắn ngày nạp file vào từng dòng để xét "môn đã kết thúc" */
+function withRefDate(rows: StudentResultRow[], refDate?: string): StudentResultRow[] {
+  if (!refDate) return rows;
+  return rows.map((r) => ({ ...r, __refDate: refDate }) as StudentResultRow);
 }
 
 /** Cấm thi = (Trượt điểm danh + Trượt quá trình) / tổng lượt SV */
@@ -105,6 +146,32 @@ function passOf(rows: StudentResultRow[]): { count: number | null; rate: number 
   if (evaluated.length === 0) return { count: 0, rate: null };
   const count = evaluated.filter((r) => st(r).isPassed).length;
   return { count, rate: (count / evaluated.length) * 100 };
+}
+
+/** Ghi chú chất lượng dữ liệu cho người xem kiểm tra lại */
+export function computeDataNotes(
+  block1Weekly: BlockWeeklyData,
+  block2Weekly: BlockWeeklyData
+): { testRows: number; overdueFailRows: number; otherBlockRows: number } {
+  let testRows = 0;
+  let overdueFailRows = 0;
+  let otherBlockRows = 0;
+  const seen = new Set<StudentResultRow[]>();
+  for (const [data, block] of [[block1Weekly, 'B1'], [block2Weekly, 'B2']] as const) {
+    for (const w of [getLatestWeekUploaded(data), 8]) {
+      if (!w || !data[w] || seen.has(data[w]!.results)) continue;
+      seen.add(data[w]!.results);
+      for (const r of recordRows(data, w)) {
+        if (isTestClass(r.classCode)) {
+          testRows++;
+          continue;
+        }
+        if (r.blockFromFile && r.blockFromFile !== block) otherBlockRows++;
+        if (evaluateStatus(r.status).isPending && !st(r).isPending) overdueFailRows++;
+      }
+    }
+  }
+  return { testRows, overdueFailRows, otherBlockRows };
 }
 
 /**
@@ -167,10 +234,10 @@ export function computeTable1Data(
   const latestB2Week = getLatestWeekUploaded(block2Weekly);
 
   // Chỉ giữ lượt học đúng block (file export có thể chứa cả B1 và B2)
-  const b1LatestResults = filterByBlock(latestB1Week ? block1Weekly[latestB1Week]?.results || [] : [], 'B1', resolve);
-  const b2LatestResults = filterByBlock(latestB2Week ? block2Weekly[latestB2Week]?.results || [] : [], 'B2', resolve);
-  const b1Week8Results = filterByBlock(block1Weekly[8]?.results || [], 'B1', resolve);
-  const b2Week8Results = filterByBlock(block2Weekly[8]?.results || [], 'B2', resolve);
+  const b1LatestResults = filterByBlock(recordRows(block1Weekly, latestB1Week), 'B1', resolve);
+  const b2LatestResults = filterByBlock(recordRows(block2Weekly, latestB2Week), 'B2', resolve);
+  const b1Week8Results = filterByBlock(recordRows(block1Weekly, 8), 'B1', resolve);
+  const b2Week8Results = filterByBlock(recordRows(block2Weekly, 8), 'B2', resolve);
 
   // Combined results for FA26
   const combinedLatestResults = [...b1LatestResults, ...b2LatestResults];
@@ -326,7 +393,9 @@ export function computeTable2Data(
   const weeklyData: Record<number, { results: StudentResultRow[] } | undefined> = {};
   for (const w of [1, 2, 3, 4, 5, 6, 8]) {
     const rec = rawWeeklyData[w];
-    weeklyData[w] = rec ? { results: block ? filterByBlock(rec.results, block, resolve) : rec.results } : undefined;
+    if (!rec) continue;
+    const rows = recordRows(rawWeeklyData, w);
+    weeklyData[w] = { results: block ? filterByBlock(rows, block, resolve) : rows.filter((r) => !isTestClass(r.classCode)) };
   }
   const rows: Table2RowData[] = DNA_DEPARTMENTS.map((dept, index) => {
     if (!dept.isSupportedAtDna) {

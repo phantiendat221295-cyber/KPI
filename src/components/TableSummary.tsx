@@ -1,6 +1,6 @@
 import React from 'react';
 import { Table1RowData } from '../types';
-import { AlertCircle, FileSpreadsheet } from 'lucide-react';
+import { AlertCircle, FileSpreadsheet, Info } from 'lucide-react';
 
 interface TableSummaryProps {
   rows: Table1RowData[];
@@ -8,6 +8,7 @@ interface TableSummaryProps {
   searchTerm: string;
   hasEnrollmentData: boolean;
   hasExportData: boolean;
+  dataNotes?: { testRows: number; overdueFailRows: number; otherBlockRows: number };
   onExportExcel: () => void;
 }
 
@@ -28,6 +29,7 @@ export const TableSummary: React.FC<TableSummaryProps> = ({
   searchTerm,
   hasEnrollmentData,
   hasExportData,
+  dataNotes,
   onExportExcel,
 }) => {
   const filteredRows = rows.filter((r) => {
@@ -68,19 +70,35 @@ export const TableSummary: React.FC<TableSummaryProps> = ({
         </div>
       )}
 
+      {/* Ghi chú cách tính - để đối chiếu với Hệ thống Phổ điểm */}
+      {hasExportData && dataNotes && (
+        <div className="border-b border-gray-200 bg-blue-50/40 px-5 py-2 flex items-start gap-2 text-[11px] text-gray-600 leading-relaxed">
+          <Info className="w-3.5 h-3.5 text-[#0066B3] shrink-0 mt-0.5" />
+          <span>
+            Pass (%) = SL Đạt / (Số lượt SV − lượt chưa có kết quả). Dữ liệu lấy từ file Tuần 8 (nếu có), mỗi lượt được
+            xếp block theo cột <b>Block</b> của export.csv.
+            {dataNotes.otherBlockRows > 0 && <> Đã tách {dataNotes.otherBlockRows.toLocaleString('vi-VN')} lượt thuộc block khác ra khỏi file đã nạp.</>}
+            {dataNotes.testRows > 0 && <> Đã loại {dataNotes.testRows} lượt của lớp thi thử (TL_EOS test).</>}
+            {dataNotes.overdueFailRows > 0 && (
+              <> {dataNotes.overdueFailRows} lượt còn "Studying" nhưng môn đã kết thúc và điểm &lt; 5 được tính là thi trượt.</>
+            )}
+          </span>
+        </div>
+      )}
+
       {/* Table Container */}
       <div className="overflow-x-auto">
-        <table className="w-full text-xs text-left border-collapse border border-gray-200">
+        <table className="w-full text-xs text-left border-collapse border border-gray-200 tabular-nums">
           <thead>
             {/* Header Tier 1 */}
             <tr className="bg-[#F3F4F6] text-[#374151] font-semibold text-center border-b border-gray-300">
-              <th rowSpan={2} className="px-2.5 py-2 border-r border-gray-300 w-10">
+              <th rowSpan={2} className="px-1 py-2 border-r border-gray-300 w-11 min-w-11 max-w-11 sticky left-0 z-10 bg-[#F3F4F6]">
                 STT
               </th>
-              <th rowSpan={2} className="px-3 py-2 border-r border-gray-300 w-12 text-center">
+              <th rowSpan={2} className="px-1 py-2 border-r border-gray-300 w-13 min-w-13 max-w-13 text-center sticky left-11 z-10 bg-[#F3F4F6]">
                 CS
               </th>
-              <th rowSpan={2} className="px-3 py-2 border-r border-gray-300 text-left min-w-[90px]">
+              <th rowSpan={2} className="px-3 py-2 border-r border-gray-300 text-left min-w-[110px] sticky left-24 z-10 bg-[#F3F4F6] shadow-[2px_0_0_0_#d1d5db]">
                 BM
               </th>
 
@@ -147,17 +165,18 @@ export const TableSummary: React.FC<TableSummaryProps> = ({
             {filteredRows.map((row) => {
               const rowBg = !row.isSupported
                 ? 'bg-gray-50/60 text-gray-400'
-                : 'hover:bg-gray-50 text-gray-700';
+                : 'hover:bg-blue-50/40 text-gray-700';
+              const stickyBg = !row.isSupported ? 'bg-gray-50' : 'bg-white group-hover:bg-blue-50';
 
               return (
-                <tr key={row.department} className={`transition-colors ${rowBg}`}>
-                  <td className="px-2.5 py-2 text-center text-gray-500 border-r border-gray-200">
+                <tr key={row.department} className={`group transition-colors ${rowBg}`}>
+                  <td className={`px-1 py-2 text-center text-gray-500 border-r border-gray-200 sticky left-0 z-[1] ${stickyBg}`}>
                     {row.stt}
                   </td>
-                  <td className="px-3 py-2 text-center font-semibold text-gray-700 border-r border-gray-200">
+                  <td className={`px-1 py-2 text-center font-semibold text-gray-700 border-r border-gray-200 sticky left-11 z-[1] ${stickyBg}`}>
                     DNA
                   </td>
-                  <td className="px-3 py-2 font-semibold text-gray-800 border-r border-gray-200 whitespace-nowrap">
+                  <td className={`px-3 py-2 font-semibold text-gray-800 border-r border-gray-200 whitespace-nowrap sticky left-24 z-[1] shadow-[2px_0_0_0_#e5e7eb] ${stickyBg}`}>
                     {row.department}
                     {!row.isSupported && <span className="text-[10px] text-gray-400 ml-1 font-normal">(N/A)</span>}
                   </td>
@@ -247,11 +266,11 @@ export const TableSummary: React.FC<TableSummaryProps> = ({
           {/* Total Row */}
           <tfoot>
             <tr className="bg-[#F3F4F6] font-bold text-gray-900 border-t-2 border-gray-300">
-              <td className="px-2.5 py-2.5 text-center border-r border-gray-300"></td>
-              <td className="px-3 py-2.5 text-center text-[#0066B3] border-r border-gray-300">
+              <td className="px-1 py-2.5 text-center border-r border-gray-300 sticky left-0 z-[1] bg-[#F3F4F6]"></td>
+              <td className="px-1 py-2.5 text-center text-[#0066B3] border-r border-gray-300 sticky left-11 z-[1] bg-[#F3F4F6]">
                 DNA
               </td>
-              <td className="px-3 py-2.5 text-left border-r border-gray-300 font-bold">
+              <td className="px-3 py-2.5 text-left border-r border-gray-300 font-bold whitespace-nowrap sticky left-24 z-[1] bg-[#F3F4F6] shadow-[2px_0_0_0_#d1d5db]">
                 Tổng cơ sở
               </td>
 

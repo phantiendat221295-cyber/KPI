@@ -5,6 +5,9 @@
 export type BlockType = 'B1' | 'B2';
 export type UserRole = 'admin' | 'viewer';
 
+/** Trạng thái tự động lưu lên Google Sheets */
+export type SaveStatus = 'idle' | 'pending' | 'saving' | 'saved' | 'error' | 'local';
+
 export interface SemesterConfig {
   semesterName: string; // e.g. Fall 2026 (FA26)
   startDate: string;    // YYYY-MM-DD e.g. 2026-09-14
@@ -65,7 +68,10 @@ export interface StudentResultRow {
   isPending?: boolean;     // Chưa có kết quả (Studying / Not started...) - loại khỏi mẫu số Pass
   department: DnaDepartmentCode;
   block?: BlockType;
+  blockFromFile?: BlockType; // Cột "Block" trong export.csv (nếu có)
   startDate?: string;
+  endDate?: string;          // Cột "Ngày cuối" (YYYY-MM-DD)
+  score?: number | null;     // Cột "Điểm"
   rawRow?: Record<string, any>;
 }
 
@@ -74,6 +80,7 @@ export interface WeeklyUploadRecord {
   fileName: string;
   fileSize: number;
   uploadedAt: string;
+  uploadedDate?: string; // YYYY-MM-DD - ngày nạp file (mốc xét "đã kết thúc môn")
   rowCount: number;
   results: StudentResultRow[];
 }

@@ -282,6 +282,78 @@ export function evaluateStatus(statusStr: string): {
   return { isAttendanceFailed, isOngoingAssessmentFail, isForbiddenExam, isPassed, isPending };
 }
 
+/** "Block 1" / "B1" / "1" -> 'B1' ; "Block 2" -> 'B2' ; khác -> undefined */
+export function parseBlockLabel(v: string): BlockType | undefined {
+  const t = (v || '').toUpperCase().replace(/\s+/g, '');
+  if (!t) return undefined;
+  if (t === 'BLOCK1' || t === 'B1' || t === '1') return 'B1';
+  if (t === 'BLOCK2' || t === 'B2' || t === '2') return 'B2';
+  return undefined;
+}
+
+/** Chuyển 1 dòng thô của export.csv thành StudentResultRow (null nếu dòng trống) */
+export function mapWeeklyResultRow(
+  raw: Record<string, any>,
+  index: number,
+  assignedBlock: BlockType,
+  customMappings: Record<string, DnaDepartmentCode> = {}
+): StudentResultRow | null {
+  const studentCode = String(
+    getColumnValue(raw, ['Mã SV', 'MSSV', 'Mã sinh viên', 'Roll Number', 'Student Code', 'Mã']) || ''
+  ).trim();
+
+  const subjectCode = String(
+    getColumnValue(raw, ['Mã môn', 'Mã môn học', 'Subject Code', 'Subject', 'Ma_mon']) || ''
+  ).trim();
+
+  const status = String(
+    getColumnValue(raw, ['Trạng thái', 'Status', 'Kết quả', 'Result', 'Trang_thai']) || ''
+  ).trim();
+
+  const classCode = String(
+    getColumnValue(raw, ['Lớp', 'Lớp môn', 'Class', 'Class Code', 'Lop']) || ''
+  ).trim();
+
+  const studentName = String(
+    getColumnValue(raw, ['Họ tên', 'Tên SV', 'Student Name', 'Full Name']) || ''
+  ).trim();
+
+  const startDateVal = getColumnValue(raw, ['Ngày đầu', 'Ngày bắt đầu', 'Start Date', 'Ngay_dau']);
+  const endDateVal = getColumnValue(raw, ['Ngày cuối', 'Ngày kết thúc', 'End Date', 'Ngay_cuoi']);
+  const blockRaw = String(getColumnValue(raw, ['Block']) ?? '').trim();
+  const scoreRaw = getColumnValue(raw, ['Điểm', 'Score', 'Diem']);
+
+  if (!subjectCode && !studentCode && !status) return null;
+
+  const blockFromFile = parseBlockLabel(blockRaw);
+  const scoreNum = scoreRaw === undefined || scoreRaw === null || String(scoreRaw).trim() === ''
+    ? null
+    : Number(String(scoreRaw).replace(',', '.'));
+
+  const department = resolveDepartment(subjectCode, customMappings);
+  const { isAttendanceFailed, isOngoingAssessmentFail, isForbiddenExam, isPassed, isPending } = evaluateStatus(status);
+  const isoDate = parseDateToIso(startDateVal);
+
+  return {
+    studentCode: studentCode || `SV_${index + 1}`,
+    studentName,
+    subjectCode: subjectCode || 'UNKNOWN',
+    classCode,
+    status,
+    isAttendanceFailed,
+    isOngoingAssessmentFail,
+    isForbiddenExam,
+    isPassed,
+    isPending,
+    department,
+    block: assignedBlock,
+    blockFromFile,
+    startDate: isoDate || undefined,
+    endDate: parseDateToIso(endDateVal) || undefined,
+    score: scoreNum !== null && Number.isFinite(scoreNum) ? scoreNum : null,
+  };
+}
+
 /**
  * Parse 'export.csv' (Weekly Academic Results)
  */
@@ -299,50 +371,8 @@ export async function parseWeeklyResultFile(
         try {
           const rows: StudentResultRow[] = [];
           for (const raw of results.data) {
-            const studentCode = String(
-              getColumnValue(raw, ['Mã SV', 'MSSV', 'Mã sinh viên', 'Roll Number', 'Student Code']) || ''
-            ).trim();
-
-            const subjectCode = String(
-              getColumnValue(raw, ['Mã môn', 'Mã môn học', 'Subject Code', 'Subject', 'Ma_mon']) || ''
-            ).trim();
-
-            const status = String(
-              getColumnValue(raw, ['Trạng thái', 'Status', 'Kết quả', 'Result', 'Trang_thai']) || ''
-            ).trim();
-
-            const classCode = String(
-              getColumnValue(raw, ['Lớp', 'Lớp môn', 'Class', 'Class Code', 'Lop']) || ''
-            ).trim();
-
-            const studentName = String(
-              getColumnValue(raw, ['Họ tên', 'Tên SV', 'Student Name', 'Full Name']) || ''
-            ).trim();
-
-            const startDateVal = getColumnValue(raw, ['Ngày đầu', 'Ngày bắt đầu', 'Start Date', 'Ngay_dau']);
-
-            if (!subjectCode && !studentCode && !status) continue;
-
-            const department = resolveDepartment(subjectCode, customMappings);
-            const { isAttendanceFailed, isOngoingAssessmentFail, isForbiddenExam, isPassed, isPending } = evaluateStatus(status);
-            const isoDate = parseDateToIso(startDateVal);
-
-            rows.push({
-              studentCode: studentCode || `SV_${rows.length + 1}`,
-              studentName,
-              subjectCode: subjectCode || 'UNKNOWN',
-              classCode,
-              status,
-              isAttendanceFailed,
-              isOngoingAssessmentFail,
-              isForbiddenExam,
-              isPassed,
-              isPending,
-              department,
-              block: assignedBlock,
-              startDate: isoDate || undefined,
-              rawRow: raw,
-            });
+            const row = mapWeeklyResultRow(raw, rows.length, assignedBlock, customMappings);
+            if (row) rows.push(row);
           }
 
           resolve({ rows, totalRows: rows.length });

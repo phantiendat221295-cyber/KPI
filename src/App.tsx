@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { DEFAULT_SEMESTER_CONFIG } from './constants';
 import {
   BlockType,
@@ -7,6 +7,7 @@ import {
   DnaDepartmentCode,
   SemesterConfig,
   StudentEnrollmentRow,
+  SaveStatus,
   ToastMessage,
   UserRole,
 } from './types';
@@ -17,7 +18,7 @@ import {
   resolveDepartment,
 } from './utils/parser';
 import { determineBlockFromDate } from './utils/dateUtils';
-import { computeTable1Data, computeTable2Data } from './utils/calculator';
+import { computeDataNotes, computeTable1Data, computeTable2Data } from './utils/calculator';
 import { exportOkrReportToExcel } from './utils/excelExport';
 import {
   APPS_SCRIPT_STORAGE_KEY,
@@ -42,6 +43,7 @@ import { TableWeeklyOKR } from './components/TableWeeklyOKR';
 import { ConfigModal } from './components/ConfigModal';
 import { DepartmentModal } from './components/DepartmentModal';
 import { ToastContainer } from './components/Toast';
+import { AppFooter } from './components/AppFooter';
 
 // 1. Helper to synchronously read LocalStorage on initial load (0.01s instant render)
 function loadInitialLocalData(): CloudSyncPayload | null {
@@ -78,6 +80,16 @@ export default function App() {
     return cachedData?.updatedAt || localStorage.getItem(LAST_SYNC_STORAGE_KEY) || null;
   });
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  // Trạng thái TỰ ĐỘNG LƯU (không cần bấm đồng bộ tay)
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [dirtyTick, setDirtyTick] = useState<number>(0);
+  const localEditedRef = useRef<boolean>(false); // đã có thay đổi trên máy này -> không để dữ liệu cloud cũ ghi đè
+  const savingRef = useRef<boolean>(false);
+  const queuedSaveRef = useRef<boolean>(false);
+  const markDirty = useCallback(() => {
+    localEditedRef.current = true;
+    setDirtyTick((t) => t + 1);
+  }, []);
   const [isFetchingCloud, setIsFetchingCloud] = useState<boolean>(false);
 
   // 3. Custom Subject Mappings (Dictionary)
@@ -191,7 +203,9 @@ export default function App() {
       if (!isMounted) return;
       setIsFetchingCloud(false);
 
-      // ONLY overwrite if Google Sheets returns valid non-empty data!
+      // ONLY overwrite if Google Sheets returns valid non-empty data
+      // và người dùng chưa nạp file mới trong phiên này (tránh dữ liệu cloud cũ ghi đè)
+      if (localEditedRef.current) return;
       if (res.success && res.data && isValidCloudPayload(res.data)) {
         applyCloudPayload(res.data);
         addToast(
@@ -236,12 +250,23 @@ export default function App() {
   };
 
   // Sync To Cloud (POST)
-  const handleSyncToCloud = async () => {
+  const handleSyncToCloud = async (opts: { silent?: boolean } = {}) => {
+    const silent = Boolean(opts.silent);
     if (!appsScriptUrl) {
-      setIsConfigModalOpen(true);
-      addToast('info', 'Chưa cấu hình Google Apps Script URL', 'Vui lòng nhập URL Web App trong modal Cấu hình.');
+      setSaveStatus('local');
+      if (!silent) {
+        setIsConfigModalOpen(true);
+        addToast('info', 'Chưa cấu hình Google Apps Script URL', 'Vui lòng nhập URL Web App trong modal Cấu hình.');
+      }
       return;
     }
+    if (savingRef.current) {
+      // Đang lưu -> xếp hàng 1 lần lưu nữa với dữ liệu mới nhất
+      queuedSaveRef.current = true;
+      return;
+    }
+    savingRef.current = true;
+    setSaveStatus('saving');
 
     const nowStr = new Date().toLocaleString('vi-VN');
     const rawPayload: CloudSyncPayload = {
@@ -269,19 +294,57 @@ export default function App() {
     setIsSyncing(true);
     const res = await syncStateToGoogleSheets(appsScriptUrl, cleanPayload);
     setIsSyncing(false);
+    savingRef.current = false;
 
     if (res.success) {
       setLastSyncedAt(nowStr);
       localStorage.setItem(LAST_SYNC_STORAGE_KEY, nowStr);
-      addToast(
-        'success',
-        'Đồng bộ lên Cloud thành công',
-        'Đã lưu dữ liệu lên Google Sheets! Bất kỳ ai mở link https://kpi-daotao-dna.vercel.app/ cũng sẽ xem được ngay.'
-      );
+      setSaveStatus('saved');
+      if (!silent) {
+        addToast('success', 'Đã lưu lên Cloud', 'Mọi người mở link kpi-daotao-dna.vercel.app sẽ thấy dữ liệu mới ngay.');
+      }
     } else {
-      addToast('error', 'Lỗi gửi dữ liệu lên Google Sheets', res.message || 'Không thể gửi dữ liệu lên máy chủ.');
+      setSaveStatus('error');
+      addToast('error', 'Chưa lưu được lên Cloud', `${res.message || 'Không thể gửi dữ liệu lên máy chủ.'} Dữ liệu vẫn được giữ trên máy này - bấm "Thử lại" ở góc trên.`);
+    }
+
+    if (queuedSaveRef.current) {
+      queuedSaveRef.current = false;
+      setDirtyTick((t) => t + 1);
     }
   };
+
+  // ==========================================
+  // TỰ ĐỘNG LƯU LÊN CLOUD SAU MỖI LẦN NẠP / XÓA FILE / ĐỔI CẤU HÌNH
+  // ==========================================
+  const syncRef = useRef(handleSyncToCloud);
+  syncRef.current = handleSyncToCloud;
+
+  useEffect(() => {
+    if (dirtyTick === 0) return;
+    if (userRole !== 'admin') return;
+    if (!appsScriptUrl || !appsScriptUrl.trim()) {
+      setSaveStatus('local');
+      return;
+    }
+    setSaveStatus('pending');
+    const timer = setTimeout(() => {
+      syncRef.current({ silent: true });
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [dirtyTick, userRole, appsScriptUrl]);
+
+  // Cảnh báo khi đóng tab lúc dữ liệu chưa lưu xong
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (saveStatus === 'pending' || saveStatus === 'saving') {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [saveStatus]);
 
   // Test Connection
   const handleTestConnection = async (testUrl: string): Promise<{ success: boolean; message: string }> => {
@@ -319,6 +382,7 @@ export default function App() {
       }
       setCustomMappings(mappings);
       setSubjectFileName(file.name);
+      markDirty();
       addToast(
         'success',
         'Cập nhật từ điển môn học thành công',
@@ -347,6 +411,7 @@ export default function App() {
   const handleClearSubjectFile = () => {
     setCustomMappings({});
     setSubjectFileName(null);
+    markDirty();
     addToast('info', 'Đã xóa file danh mục', 'Hệ thống đã quay về từ điển tiền tố mặc định của DNA.');
     if (enrollmentRows.length > 0) {
       setEnrollmentRows((prev) =>
@@ -373,6 +438,7 @@ export default function App() {
       setEnrollmentRows(rows);
       setEnrollmentFileName(file.name);
       setRawEnrollmentFile(file);
+      markDirty();
 
       const b1Count = rows.filter((r) => r.block === 'B1').length;
       const b2Count = rows.filter((r) => r.block === 'B2').length;
@@ -396,6 +462,7 @@ export default function App() {
     setEnrollmentRows([]);
     setEnrollmentFileName(null);
     setRawEnrollmentFile(null);
+    markDirty();
     addToast('info', 'Đã xóa file phân lớp', 'Đã đặt lại số lượt sinh viên về 0.');
   };
 
@@ -416,7 +483,11 @@ export default function App() {
         weekNumber,
         fileName: file.name,
         fileSize: file.size,
-        uploadedAt: new Date().toLocaleTimeString('vi-VN'),
+        uploadedAt: new Date().toLocaleString('vi-VN'),
+        uploadedDate: (() => {
+          const d = new Date();
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        })(),
         rowCount: totalRows,
         results: rows,
       };
@@ -426,6 +497,7 @@ export default function App() {
       } else {
         setBlock2Weekly((prev) => ({ ...prev, [weekNumber]: newRecord }));
       }
+      markDirty();
 
       addToast(
         'success',
@@ -456,12 +528,14 @@ export default function App() {
         return copy;
       });
     }
+    markDirty();
     addToast('info', `Đã gỡ file Tuần ${weekNumber}`, `Đã xóa dữ liệu tuần này của ${block}.`);
   };
 
   // Handler 4: Config Update
   const handleSaveConfig = async (newConfig: SemesterConfig, newUrl: string) => {
     setConfig(newConfig);
+    markDirty();
     const trimmed = newUrl.trim();
     setAppsScriptUrl(trimmed);
     if (trimmed) {
@@ -504,6 +578,7 @@ export default function App() {
   // Custom mapping additions
   const handleAddOrUpdateMapping = (subjectCode: string, department: DnaDepartmentCode) => {
     setCustomMappings((prev) => ({ ...prev, [subjectCode]: department }));
+    markDirty();
     addToast('success', 'Đã lưu ánh xạ', `Mã môn ${subjectCode} → Bộ môn ${department}`);
     if (enrollmentRows.length > 0) {
       setEnrollmentRows((prev) =>
@@ -520,6 +595,7 @@ export default function App() {
       delete copy[subjectCode];
       return copy;
     });
+    markDirty();
     addToast('info', 'Đã xóa ánh xạ', `Đã xóa quy tắc cho mã môn ${subjectCode}`);
   };
 
@@ -529,6 +605,8 @@ export default function App() {
   const { rows: table1Rows, totalRow: table1Total } = useMemo(() => {
     return computeTable1Data(enrollmentRows, block1Weekly, block2Weekly, config);
   }, [enrollmentRows, block1Weekly, block2Weekly, config]);
+
+  const dataNotes = useMemo(() => computeDataNotes(block1Weekly, block2Weekly), [block1Weekly, block2Weekly]);
 
   const { rows: table2B1Rows, totalRow: table2B1Total } = useMemo(() => {
     return computeTable2Data(block1Weekly, 'B1', enrollmentRows, config);
@@ -592,8 +670,9 @@ export default function App() {
           isSyncing={isSyncing}
           isFetchingCloud={isFetchingCloud}
           lastSyncedAt={lastSyncedAt}
-          onSyncToCloud={handleSyncToCloud}
+          onSyncToCloud={() => handleSyncToCloud()}
           onFetchFromCloud={handleFetchFromCloud}
+          saveStatus={saveStatus}
           userRole={userRole}
           onToggleRole={handleToggleRole}
         />
@@ -625,7 +704,9 @@ export default function App() {
             onClearWeeklyFile={handleClearWeeklyFile}
             hasCloudApi={Boolean(appsScriptUrl && appsScriptUrl.trim())}
             isSyncing={isSyncing}
-            onSyncToCloud={handleSyncToCloud}
+            saveStatus={saveStatus}
+            lastSyncedAt={lastSyncedAt}
+            onSyncToCloud={() => handleSyncToCloud()}
             onOpenConfig={() => setIsConfigModalOpen(true)}
           />
 
@@ -636,6 +717,7 @@ export default function App() {
             searchTerm={searchTerm}
             hasEnrollmentData={hasEnrollmentData}
             hasExportData={hasExportData}
+            dataNotes={dataNotes}
             onExportExcel={handleExportExcel}
           />
 
@@ -651,6 +733,8 @@ export default function App() {
             onExportExcel={handleExportExcel}
           />
         </main>
+
+        <AppFooter lastSyncedAt={lastSyncedAt} semesterName={config.semesterName} />
       </div>
 
       {/* Modals & Dialogs */}

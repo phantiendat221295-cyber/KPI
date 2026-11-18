@@ -1,4 +1,5 @@
 import React from 'react';
+import { APP_VERSION } from '../version';
 import {
   BarChart3,
   Calendar,
@@ -148,7 +149,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {!isCollapsed && (
           <div className="text-center pt-1">
             <span className="text-[10px] text-gray-400 block font-normal">
-              AP Portal • Cơ sở DNA
+              KPI Đào tạo DNA • v{APP_VERSION}
             </span>
           </div>
         )}
